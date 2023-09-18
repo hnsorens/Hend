@@ -1,0 +1,1 @@
+bison -d parser.y && flex lexer.l && gcc -o my_program lex.yy.c parser.tab.c -lfl && ./my_program < code.hend

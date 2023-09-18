@@ -1,0 +1,12 @@
+
+pub fn add(i4 a, i4 b) i4
+{
+    ret a + b;
+}
+
+pub fn Main() i4
+{
+    i4 l: 1;
+    add(a: 1, b: 1);
+    ret 1;
+}
