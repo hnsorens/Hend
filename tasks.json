@@ -1,1 +1,1 @@
-bison -d parser.y && flex lexer.l && gcc -o my_program lex.yy.c parser.tab.c -lfl && ./my_program < code.hend
+bison -d parser.y && flex lexer.l && gcc -o compiler lex.yy.c parser.tab.c -lfl && ./compiler < code.hend && gcc -o my_program assembly.s -fPIE -no-pie -lm && ./my_program

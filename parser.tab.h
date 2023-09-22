@@ -99,7 +99,9 @@ extern int yydebug;
     PUBLIC = 300,                  /* PUBLIC  */
     PRIVATE = 301,                 /* PRIVATE  */
     LBRACKET = 302,                /* LBRACKET  */
-    RBRACKET = 303                 /* RBRACKET  */
+    RBRACKET = 303,                /* RBRACKET  */
+    STRING_VALUE = 304,            /* STRING_VALUE  */
+    STRING = 305                   /* STRING  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -113,14 +115,15 @@ union YYSTYPE
     int int_val;
     double double_val;
     char* string_val;
-    struct Decl* decl_ptr;
-    struct Type* type_ptr;
-    struct Param* param_ptr;
-    struct Stmt* stmt_ptr;
-    struct Expr* expr_ptr;
-    struct Modifier * modifier_ptr;
+    struct ident* ident_ptr;
+    struct type* type_ptr;
+    struct expr* expr_ptr;
+    struct expr_function_arg* expr_function_arg_ptr;
+    struct function_param* function_param_ptr;
+    struct decl * decl_ptr;
+    struct stmt * stmt_ptr;
 
-#line 124 "parser.tab.h"
+#line 127 "parser.tab.h"
 
 };
 typedef union YYSTYPE YYSTYPE;

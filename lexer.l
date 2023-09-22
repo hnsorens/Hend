@@ -3,6 +3,8 @@
 %}
 
 %%
+"'[^']'"    { yylval.string_val = strdup(yytext); return STRING_VALUE; }
+"string"    { return STRING; } 
 "struct"    { return STRUCT; }
 "mod"       { return MODULE; }
 "pub"       { return PUBLIC; }
@@ -15,16 +17,16 @@
 "void"      { return VOID; }
 "obj"       { return OBJECT; }
 "include"   { return INCLUDE; }
-"i1"        { return I1; }        
-"i2"        { return I2; }
-"i4"        { return I4; }
-"i8"        { return I8; }
-"i1"        { return UI1; }        
-"i2"        { return UI2; }
-"i4"        { return UI4; }
-"i8"        { return UI8; }
-"f4"        { return F4; }
-"f8"        { return F8; }
+"int1"        { return I1; }        
+"int2"        { return I2; }
+"int4"        { return I4; }
+"int8"        { return I8; }
+"uint1"        { return UI1; }        
+"uint2"        { return UI2; }
+"uint4"        { return UI4; }
+"uint8"        { return UI8; }
+"float4"        { return F4; }
+"float8"        { return F8; }
 "bool"      { return BOOLEAN; }
 "char"      { return CHARACTER; }
 "for"       { return FOR; }
