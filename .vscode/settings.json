@@ -10,6 +10,9 @@
         "streambuf": "c",
         "array": "c",
         "functional": "c",
-        "tuple": "c"
+        "tuple": "c",
+        "system_error": "c",
+        "type_traits": "c",
+        "utility": "c"
     }
 }

@@ -4,7 +4,7 @@
 _start:
 	push	rbp
 	mov	rbp,	rsp
-	sub	rsp,	4
+	sub	rsp,	84
 	mov	rbx,	1
 	push	rbx
 	mov	rbx,	0
@@ -17,7 +17,7 @@ _start:
 	mov	dword [rbp - 4],	r11d
 	mov	r10,	1
 	mov	rax,	r10
-	add	rsp,	4
+	add	rsp,	84
 	pop	rbp
 	xor	rbx,	rbx
 	int	0x80

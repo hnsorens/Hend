@@ -19,9 +19,11 @@ struct decl * code;
     struct function_param* function_param_ptr;
     struct decl * decl_ptr;
     struct stmt * stmt_ptr;
+    struct array_sub * array_sub_ptr;
+    struct type_spec * type_spec_ptr;
 }
 
-%token IF FOR WHILE QUOTE TRUE_ FALSE_ CHARACTER BOOLEAN ERROR I1 I2 I4 I8 UI1 UI2 UI4 UI8 F4 F8 STRUCT MODULE RETURN EXTEND REQUIREMENT COMMA CONSTRUCTOR VOID OBJECT INCLUDE NUM IDENTIFIER PLUS MINUS TIMES DIVIDE ASSIGN SEMICOLON FUNCTION LPAREN RPAREN LCBRACKET RCBRACKET PUBLIC PRIVATE LBRACKET RBRACKET STRING_VALUE STRING
+%token POINTER IF FOR WHILE QUOTE TRUE_ FALSE_ CHARACTER BOOLEAN ERROR I1 I2 I4 I8 UI1 UI2 UI4 UI8 F4 F8 STRUCT MODULE RETURN EXTEND REQUIREMENT COMMA CONSTRUCTOR VOID OBJECT INCLUDE NUM IDENTIFIER PLUS MINUS TIMES DIVIDE ASSIGN SEMICOLON FUNCTION LPAREN RPAREN LCBRACKET RCBRACKET PUBLIC PRIVATE LBRACKET RBRACKET STRING_VALUE STRING
 
 %type <decl_ptr> program
 %type <decl_ptr> declaration
@@ -36,7 +38,8 @@ struct decl * code;
 %type <int_val> NUM
 %type <string_val> IDENTIFIER
 %type <string_val> STRING_VALUE
-
+%type <array_sub_ptr> array_subscript
+%type <type_spec_ptr> type_specifier
 
 %%
 
@@ -48,8 +51,8 @@ program:
 declaration:
     { $$ = 0; }
     | function_decl declaration { $1->next = $2; $$ = $1; }
-    | type ident SEMICOLON declaration { $$ = decl_create_global_variable($1, $2, 0, $4); }
-    | type ident ASSIGN exp SEMICOLON declaration { $$ = decl_create_global_variable($1, $2, $4, $6); }
+    | type ident SEMICOLON declaration { $$ = decl_create_global_variable_value($1, $2, 0, $4); }
+    | type ident ASSIGN exp SEMICOLON declaration { $$ = decl_create_global_variable_value($1, $2, $4, $6); }
     ;
 
 function_decl:
@@ -66,10 +69,11 @@ param:
 
 exp:
     | LPAREN exp RPAREN {$$ = $2;}
-    | IDENTIFIER { $$ = expr_create_name($1); }
+    | IDENTIFIER { $$ = expr_create_name($1, 0); }
+    | IDENTIFIER LBRACKET NUM RBRACKET { $$ = expr_create_name($1, $3); }
     | NUM { $$ = expr_create_integer($1); }
     | STRING_VALUE { $$ = 0; }
-    | exp ASSIGN exp { $$ = expr_create_assign($1, $3); }
+    | ident ASSIGN exp { $$ = expr_create_assign($1, $3); }
     | exp PLUS exp { $$ = expr_create_add($1, $3); }
     | exp MINUS exp { $$ = expr_create_sub($1, $3); }
     | exp TIMES exp { $$ = expr_create_mul($1, $3); }
@@ -80,8 +84,8 @@ exp:
     ;
 
 decl:
-    type ident SEMICOLON { $$ = decl_create_local_variable($1, $2, 0, 0); }
-    | type ident ASSIGN exp SEMICOLON { $$ = decl_create_local_variable($1, $2, $4, 0); }
+    type ident SEMICOLON { $$ = decl_create_local_variable_value($1, $2, 0, 0); }
+    | type ident ASSIGN exp SEMICOLON { $$ = decl_create_local_variable_value($1, $2, $4, 0); }
     ;
 
 arguments:
@@ -92,16 +96,25 @@ arguments:
 
 type:
     { $$ = 0;}
-    | VOID { $$ = type_create_primitive(PRIMITIVE_VOID); }
-    | ident { $$ = $1; }
-    | I1 { $$ = type_create_primitive(PRIMITIVE_INTEGER_8); }
-    | I2 { $$ = type_create_primitive(PRIMITIVE_INTEGER_16); }
-    | I4 { $$ = type_create_primitive(PRIMITIVE_INTEGER_32); }
-    | I8 { $$ = type_create_primitive(PRIMITIVE_INTEGER_64); }
-    | BOOLEAN { $$ = type_create_primitive(PRIMITIVE_BOOL); }
-    | CHARACTER { $$ = type_create_primitive(PRIMITIVE_CHAR); }
-    | STRING { $$ = 0; }
+    | VOID type_specifier { $$ = type_create_primitive(PRIMITIVE_VOID, $2); }
+    | ident type_specifier { $$ = $1; }
+    | I1 type_specifier { $$ = type_create_primitive(PRIMITIVE_INTEGER_8, $2); }
+    | I2 type_specifier { $$ = type_create_primitive(PRIMITIVE_INTEGER_16, $2); }
+    | I4 type_specifier { $$ = type_create_primitive(PRIMITIVE_INTEGER_32, $2); }
+    | I8 type_specifier { $$ = type_create_primitive(PRIMITIVE_INTEGER_64, $2); }
+    | BOOLEAN type_specifier { $$ = type_create_primitive(PRIMITIVE_BOOL, $2); }
+    | CHARACTER type_specifier { $$ = type_create_primitive(PRIMITIVE_CHAR, $2); }
+    | STRING type_specifier { $$ = 0; }
     ;
+
+type_specifier:
+    { $$ = 0; }
+    | LBRACKET array_subscript RBRACKET { $$ = type_spec_create_array($2); }
+    | POINTER { $$ = type_spec_create_pointer(); }
+
+array_subscript:
+    | NUM { $$ = array_sub_create($1, 0); }
+    | NUM COMMA array_subscript { $$ = array_sub_create($1, $3); }
 
 statement:
     { $$ = 0; }
@@ -113,6 +126,7 @@ statement:
 ident:
     IDENTIFIER { $$ = ident_create($1); }
     ;
+
 
 %%
 

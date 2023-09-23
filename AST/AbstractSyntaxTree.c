@@ -46,7 +46,8 @@ typedef enum
     PRIMITIVE_INTEGER_64,
     PRIMITIVE_INTEGER,
     PRIMITIVE_BOOL,
-    PRIMITIVE_CHAR
+    PRIMITIVE_CHAR,
+
 } primitives_t;
 
 typedef enum
@@ -67,6 +68,7 @@ struct type
     };
 
     union type_type * type_;
+    struct type_spec * type_specifier;
 };
 
 // Function Call
@@ -159,11 +161,56 @@ struct decl_function
 
 // Var
 
+
+// struct decl_array
+// {
+//     struct array_sub* subscript;
+    
+//     struct expr ** array_content;
+
+//     int index_size;
+// };
+
+struct array_sub
+{
+    int i;
+    struct array_sub * next;
+};
+
+typedef enum
+{
+    TYPE_SPEC_NONE,
+    TYPE_SPEC_POINTER,
+    TYPE_SPEC_ARRAY
+} type_spec_t;
+
+struct type_spec
+{
+    type_spec_t kind;
+
+    struct array_sub * sub;
+};
+
+// struct array_value
+// {
+//     struct expr * e;
+//     struct array_value * a;
+
+//     int offset;
+
+//     struct array_value* next_array;
+
+// };
+
 struct decl_variable
 {
+    
     struct ident * name;
     struct type * type_;
+
     struct expr * value;
+
+    
     struct symbol * sym;
 
     int size;
@@ -272,6 +319,33 @@ struct decl * decl_create_function(struct ident * name, struct function_param * 
     return d;
 }
 
+struct array_sub * array_sub_create(int i, struct array_sub * next)
+{
+    struct array_sub * a = malloc(sizeof(*a));
+    a->i = i;
+    a->next = next;
+
+    return a;
+}
+
+struct type_spec * type_spec_create_pointer()
+{
+    struct type_spec * s = malloc(sizeof(*s));
+    s->kind = TYPE_SPEC_POINTER;
+
+    return s;
+}
+
+struct type_spec * type_spec_create_array(struct array_sub * sub)
+{
+    struct type_spec * s = malloc(sizeof(*s));
+    s->kind = TYPE_SPEC_ARRAY;
+    s->sub = sub;
+
+    return s;
+}
+
+
 struct function_param * function_create_param(struct ident * name, struct type * type_, struct expr * value, struct function_para * next)
 {
     struct function_param * p = malloc(sizeof(*p));
@@ -289,7 +363,7 @@ struct function_param * function_create_param(struct ident * name, struct type *
     return p;
 }
 
-struct expr * expr_create_name(const char * name)
+struct expr * expr_create_name(const char * name, int offset)
 {
     struct expr * e = malloc(sizeof(*e));
     e->kind = EXPR_IDENTIFIER;
@@ -332,6 +406,7 @@ struct expr * expr_create_assign(struct ident * identifier, struct expr * R)
     e->expr_ = malloc(sizeof(*e->expr_));
 
     struct expr_assign * a = malloc(sizeof(*a));
+
     a->identifier = identifier;
     a->expression = R;
 
@@ -424,7 +499,7 @@ struct expr * expr_create_call(struct ident * name, struct expr_function_arg * a
     return e;
 }
 
-struct type * type_create_primitive(primitives_t kind)
+struct type * type_create_primitive(primitives_t kind, struct type_spec * spec)
 {
     struct type * t = malloc(sizeof(*t));
     t->kind = TYPE_PRIMITIVE;
@@ -432,6 +507,7 @@ struct type * type_create_primitive(primitives_t kind)
     t->type_ = malloc(sizeof(*t->type_));
 
     t->type_->kind = kind;
+    t->type_specifier = spec;
 
     return t;
 }
@@ -448,7 +524,7 @@ struct type * type_create_name(const char * name)
     return t;
 }
 
-struct decl * decl_create_global_variable(struct type * type_, struct ident * i, struct expr * value, struct decl * next)
+struct decl * decl_create_global_variable_value(struct type * type_, struct ident * i, struct expr * value, struct decl * next)
 {
     struct decl * d = malloc(sizeof(*d));
     d->kind = DECL_VARIABLE_GLOBAL;
@@ -495,7 +571,7 @@ int get_primitive_size(type_t t)
         }
 }
 
-struct decl * decl_create_local_variable(struct type * type_, struct ident * i, struct expr * value, struct decl * next)
+struct decl * decl_create_local_variable_value(struct type * type_, struct ident * i, struct expr * value, struct decl * next)
 {
     struct decl * d = malloc(sizeof(*d));
     d->kind = DECL_VARIABLE_LOCAL;
@@ -518,6 +594,7 @@ struct decl * decl_create_local_variable(struct type * type_, struct ident * i, 
 
     return d;
 }
+
 
 struct stmt * stmt_create_return(struct expr * return_value)
 {
@@ -653,6 +730,8 @@ void symbol_insert(struct symbolTable * table, struct ident * identifier, struct
 struct symbol * symbol_find(struct symbolTable * table, struct ident * identifier)
 {
     if (!table || !identifier) return 0;
+
+    printf("%s\n", identifier->name);
 
     unsigned int hash = 0;
     for (const char * p = identifier->name; * p != '\0'; p++)
@@ -806,6 +885,7 @@ void expr_resolve(struct expr * e, struct decl_function * f)
     case EXPR_BOOL:
         break;
     case EXPR_ASSIGN:
+        printf("%i\n", e->expr_->assign->identifier->name);
         ident_resolve(e->expr_->assign->identifier);
         expr_resolve(e->expr_->assign->expression, f);
         break;
@@ -837,6 +917,12 @@ struct symbol * param_resolve(struct function_param * p, struct decl_function * 
     return p->sym;
 }
 
+int get_array_size(struct array_sub * sub)
+{
+    if (!sub) return 1;
+    return sub->i * get_array_size(sub->next);
+}
+
 void decl_resolve(struct decl * d, struct decl_function * f)
 {
     if (!d || error) return;
@@ -846,16 +932,57 @@ void decl_resolve(struct decl * d, struct decl_function * f)
     switch (d->kind)
     {
     case DECL_VARIABLE_GLOBAL:
-        d->decl_->variable->sym = symbol_create(kind, d->decl_->variable->type_, d->decl_->variable->name, 0, d->decl_->variable->size);
-        expr_resolve(d->decl_->variable->value, 0);
-        scope_bind(d->decl_->variable->name, d->decl_->variable->sym);
+        if (d->decl_->variable->type_->type_specifier)
+        {
+            switch (d->decl_->variable->type_->type_specifier->kind)
+            {
+            case TYPE_SPEC_ARRAY:
+                f->variable_count += d->decl_->variable->size * get_array_size(d->decl_->variable->type_->type_specifier->sub);
+                d->decl_->variable->sym = symbol_create(kind, d->decl_->variable->type_, d->decl_->variable->name, f ? f->variable_count : 0, d->decl_->variable->size * get_array_size(d->decl_->variable->type_->type_specifier->sub));
+                expr_resolve(d->decl_->variable->value, f);
+                scope_bind(d->decl_->variable->name, d->decl_->variable->sym);
+                break;
+            case TYPE_SPEC_POINTER:
+                /* code */
+                break;
+            
+            default:
+                break;
+            }
+        }
+        else
+        {
+            d->decl_->variable->sym = symbol_create(kind, d->decl_->variable->type_, d->decl_->variable->name, 0, d->decl_->variable->size);
+            expr_resolve(d->decl_->variable->value, 0);
+            scope_bind(d->decl_->variable->name, d->decl_->variable->sym);
+        }
         break;
     case DECL_VARIABLE_LOCAL:
-        f->variable_count += d->decl_->variable->size;
-        d->decl_->variable->sym = symbol_create(kind, d->decl_->variable->type_, d->decl_->variable->name, f ? f->variable_count : 0, d->decl_->variable->size);
-        expr_resolve(d->decl_->variable->value, f);
-        scope_bind(d->decl_->variable->name, d->decl_->variable->sym);
-        
+        if (d->decl_->variable->type_->type_specifier)
+        {   
+            switch (d->decl_->variable->type_->type_specifier->kind)
+            {
+            case TYPE_SPEC_ARRAY:
+                f->variable_count += d->decl_->variable->size * get_array_size(d->decl_->variable->type_->type_specifier->sub);
+                d->decl_->variable->sym = symbol_create(kind, d->decl_->variable->type_, d->decl_->variable->name, f ? f->variable_count : 0, d->decl_->variable->size * get_array_size(d->decl_->variable->type_->type_specifier->sub));
+                expr_resolve(d->decl_->variable->value, f);
+                scope_bind(d->decl_->variable->name, d->decl_->variable->sym);
+                break;
+            case TYPE_SPEC_POINTER:
+                /* code */
+                break;
+            
+            default:
+                break;
+            }
+        }
+        else
+        {
+            f->variable_count += d->decl_->variable->size;
+            d->decl_->variable->sym = symbol_create(kind, d->decl_->variable->type_, d->decl_->variable->name, f ? f->variable_count : 0, d->decl_->variable->size);
+            expr_resolve(d->decl_->variable->value, f);
+            scope_bind(d->decl_->variable->name, d->decl_->variable->sym);
+        }
         break;
     case DECL_FUNCTION:
 
@@ -1006,7 +1133,7 @@ struct type * expr_typecheck(struct expr * e)
             printf(")\n");
             throw_error();
         }
-        return type_create_primitive(PRIMITIVE_INTEGER);
+        return type_create_primitive(PRIMITIVE_INTEGER, 0);
     case EXPR_SUB:
         struct type * s_lt = expr_typecheck(e->expr_->operation->left);
         struct type * s_rt = expr_typecheck(e->expr_->operation->right);
@@ -1023,7 +1150,7 @@ struct type * expr_typecheck(struct expr * e)
             printf(")\n");
             throw_error();
         }
-        return type_create_primitive(PRIMITIVE_INTEGER);
+        return type_create_primitive(PRIMITIVE_INTEGER, 0);
     case EXPR_MUL:
         struct type * m_lt = expr_typecheck(e->expr_->operation->left);
         struct type * m_rt = expr_typecheck(e->expr_->operation->right);
@@ -1040,7 +1167,7 @@ struct type * expr_typecheck(struct expr * e)
             printf(")\n");
             throw_error();
         }
-        return type_create_primitive(PRIMITIVE_INTEGER);
+        return type_create_primitive(PRIMITIVE_INTEGER, 0);
     case EXPR_DIV:
         struct type * d_lt = expr_typecheck(e->expr_->operation->left);
         struct type * d_rt = expr_typecheck(e->expr_->operation->right);
@@ -1057,7 +1184,7 @@ struct type * expr_typecheck(struct expr * e)
             printf(")\n");
             throw_error();
         }
-        return type_create_primitive(PRIMITIVE_INTEGER);
+        return type_create_primitive(PRIMITIVE_INTEGER, 0);
     case EXPR_ASSIGN:
         if (e->expr_->assign->identifier->sym->type != expr_typecheck(e->expr_->assign->expression))
         {
@@ -1072,9 +1199,9 @@ struct type * expr_typecheck(struct expr * e)
         }
         return expr_typecheck(e->expr_->assign->expression);
     case EXPR_INTEGER:
-        return type_create_primitive(PRIMITIVE_INTEGER);
+        return type_create_primitive(PRIMITIVE_INTEGER, 0);
     case EXPR_BOOL:
-        return type_create_primitive(PRIMITIVE_BOOL);
+        return type_create_primitive(PRIMITIVE_BOOL, 0);
     case EXPR_FUNCTION_CALL:
         return e->expr_->function_call->return_type;
     case EXPR_IDENTIFIER:
@@ -1713,12 +1840,19 @@ void decl_codegen(struct decl * d)
         decl_function_codegen(d->decl_->function);
         break;
     case DECL_VARIABLE_GLOBAL:
-        expr_codegen(d->decl_->variable->value);
-        fprintf(file, "\tMOVQ\t%s,\t%s\n", scratch_name(d->decl_->variable->value->reg, 8), symbol_codegen(d->decl_->variable->sym));
+        if (d->decl_->variable->value)
+        {
+            expr_codegen(d->decl_->variable->value);
+            fprintf(file, "\tMOVQ\t%s,\t%s\n", scratch_name(d->decl_->variable->value->reg, 8), symbol_codegen(d->decl_->variable->sym));
+        }
         break;
     case DECL_VARIABLE_LOCAL:
-        expr_codegen(d->decl_->variable->value);
-        fprintf(file, "\tmov\t%s,\t%s\n", symbol_codegen(d->decl_->variable->sym), scratch_name(d->decl_->variable->value->reg, d->decl_->variable->sym->size));
+        if (d->decl_->variable->value)
+        {   
+            expr_codegen(d->decl_->variable->value);
+            fprintf(file, "\tmov\t%s,\t%s\n", symbol_codegen(d->decl_->variable->sym), scratch_name(d->decl_->variable->value->reg, d->decl_->variable->sym->size));
+        }
+        
         break;
 
     

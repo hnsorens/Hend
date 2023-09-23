@@ -3,6 +3,8 @@
 %}
 
 %%
+"//".*    ;
+"*"         { return POINTER; }
 "'[^']'"    { yylval.string_val = strdup(yytext); return STRING_VALUE; }
 "string"    { return STRING; } 
 "struct"    { return STRUCT; }
@@ -47,8 +49,8 @@
 ")"         { return RPAREN; }
 "{"         { return LCBRACKET; }
 "}"         { return RCBRACKET; }
-"["         { return RBRACKET; }
-"]"         { return LBRACKET; }
+"["         { return LBRACKET; }
+"]"         { return RBRACKET; }
 "\""        { return QUOTE; }
 ","         { return COMMA; }
 " "         ; // Ignore whitespace
