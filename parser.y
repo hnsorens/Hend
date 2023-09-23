@@ -61,7 +61,7 @@ param:
     | type ident { $$ = function_create_param($2, $1, 0, 0); }
     | type ident ASSIGN exp { $$ = function_create_param($2, $1, $4, 0); }
     | type ident COMMA param { $$ = function_create_param($2, $1, 0, $4); }
-    | param COMMA type ident ASSIGN exp { $$ = function_create_param($3, $1, $4, $6); }
+    | type ident ASSIGN exp COMMA param { $$ = function_create_param($2, $1, $4, $6); }
     ;
 
 exp:
@@ -86,8 +86,8 @@ decl:
 
 arguments:
     { $$ = 0; }
-    | ident ASSIGN exp {$$ = expr_function_create_arg($1, $3, 0); }
-    | ident ASSIGN exp COMMA arguments { $$ = expr_function_create_arg($1, $3, $5); }
+    | exp {$$ = expr_function_create_arg($1, 0); }
+    | exp COMMA arguments { $$ = expr_function_create_arg($1, $3); }
     ;
 
 type:

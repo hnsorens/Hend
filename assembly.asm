@@ -2,35 +2,27 @@
 	global	_start
 
 _start:
-	sub	rbp,	10
-	mov	rbx,	20
-	mov	r10,	20
-	mov	r11,	3
-	add	r11,	r10
-	mov	rax,	r11
-	mul	rbx
-	mov	dword [rsp],	r11d
-	mov	r10,	20
-	mov	dword [rsp + 4],	r10d
-	mov	r11d,	dword [rsp]
-	mov	r12d,	dword [rsp + 4]
-	mov	rax,	r12
-	mul	r11
-	mov	r12,	78
-	sub	r12,	r12
-	mov	word [rsp + 8],	r12w
-	mov	r12,	1
-	mov	rax,	r12
-	mov	rax,	1
+	mov	rbx,	1
+	push	rbx
+	mov	rbx,	2
+	push	rbx
+	call	function_add
+	mov	rbx,	1
+	mov	rax,	rbx
 	xor	rbx,	rbx
 	int	0x80
-add:
+function_add:
 	push	rbp
 	mov	rbp,	rsp
-	mov	r12d,	dword [rsp + 1]
-	mov	r13d,	dword [rsp + 2]
-	add	r13,	r12
-	mov	rax,	r13
+	sub	rbp,	4
+	mov	bx,	word [rbp + 2]
+	mov	word [rsp + 2],	bx
+	mov	r10w,	word [rbp + 4]
+	mov	word [rsp + 4],	r10w
+	mov	r11w,	word [rsp + 2]
+	mov	r12w,	word [rsp + 4]
+	add	r12,	r11
+	mov	rax,	r12
 	pop	rbp
 	ret
 

@@ -2,9 +2,7 @@
 fn main() int4
 {
 
-    int4 a: 20 * (20 + 3);
-    int4 v: 20;
-    int2 k: (a * v) - 78;
+    add(1, 2);
 
 
     ret 1;

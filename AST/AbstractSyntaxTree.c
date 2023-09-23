@@ -72,7 +72,6 @@ struct type
 
 struct expr_function_arg
 {
-    struct ident * identifier;
     struct expr * value;
     struct symbol * sym;
 
@@ -143,6 +142,7 @@ struct function_param
     struct symbol * sym;
 
     struct function_param * next;
+    int size;
 };
 
 struct decl_function
@@ -242,7 +242,7 @@ struct decl * decl_create(decl_t kind)
     return d;
 }
 
-struct decl * decl_create_function(struct ident * name, struct param * params, struct type * return_type, struct stmt * body)
+struct decl * decl_create_function(struct ident * name, struct function_param * params, struct type * return_type, struct stmt * body)
 {
     struct decl * d = decl_create(DECL_FUNCTION);
     d->decl_ = malloc(sizeof(*d->decl_));
@@ -254,6 +254,7 @@ struct decl * decl_create_function(struct ident * name, struct param * params, s
     f->body = body;
     f->parameter_count = 0;
     f->variable_count = 0;
+
     if (return_type->kind == TYPE_PRIMITIVE)
     {
         f->return_size = get_primitive_size(return_type->type_->kind);
@@ -262,7 +263,8 @@ struct decl * decl_create_function(struct ident * name, struct param * params, s
     {
         f->return_size = 0;
     }
-    
+
+
 
     d->decl_->function = f;
 
@@ -277,6 +279,11 @@ struct function_param * function_create_param(struct ident * name, struct type *
     p->type_ = type_;
     p->value = value;
     p->next = next;
+
+    if (type_->kind == TYPE_PRIMITIVE)
+    {
+        p->size = get_primitive_size(type_->type_->kind);
+    }
 
     return p;
 }
@@ -392,10 +399,9 @@ struct expr * expr_create_div(struct expr * L, struct expr * R)
     return e;
 }
 
-struct expr_function_arg * expr_function_create_arg(struct ident * name, struct expr * value, struct expr_function_arg * next)
+struct expr_function_arg * expr_function_create_arg(struct expr * value, struct expr_function_arg * next)
 {
     struct expr_function_arg * a = malloc(sizeof(*a));
-    a->identifier = name;
     a->value = value;
     a->next = next;
 
@@ -820,15 +826,16 @@ struct symbol * param_resolve(struct function_param * p, struct decl_function * 
 {
     if (!p || error) return;
 
-    p->sym = symbol_create(SYMBOL_LOCAL, p->type_, p->identifier, f->variable_count, 4); // CHANGE
+    p->sym = symbol_create(SYMBOL_LOCAL, p->type_, p->identifier, f->variable_count, p->size);
 
     expr_resolve(p->value, f);
     scope_bind(p->identifier, p->sym);
 
-    f->parameter_count++;
+    f->parameter_count += p->size;
+    
     p->sym->position = f->parameter_count;
 
-    p->next = param_resolve(p->next, f);
+    p->sym->next = param_resolve(p->next, f);
 
     return p->sym;
 }
@@ -1419,10 +1426,10 @@ const char * symbol_codegen(struct symbol * s)
             switch (s->size)
             {
             case 1:
-                type = "du";
+                type = "byte";
                 break;
             case 2:
-                type = "duw";
+                type = "word";
                 break;
             case 4:
                 type = "dword";
@@ -1446,6 +1453,17 @@ const char * symbol_codegen(struct symbol * s)
     }
 }
 
+void expr_function_call_arg_codegen(struct expr_function_arg * a)
+{
+    if (!a) return;
+
+    expr_codegen(a->value);
+    fprintf(file, "\tpush\t%s\n", scratch_name(a->value->reg, 8));
+    scratch_free(a->value->reg);
+
+    expr_function_call_arg_codegen(a->next);
+}
+
 void expr_function_call_codegen(struct expr *e)
 {
     if (!e) return;
@@ -1461,6 +1479,12 @@ void expr_function_call_codegen(struct expr *e)
         fprintf(file, "\tmov\tecx,\t%s\n", "message");
         fprintf(file, "\tmov\tedx,\t%i\n", 14);
         fprintf(file, "\tint\t0x80\n");
+    }
+    else
+    {
+        expr_function_call_arg_codegen(e->expr_->function_call->arguments);
+
+        fprintf(file, "\tcall\t%s%s\n", "function_", e->expr_->function_call->identifier->name);
     }
 }
 
@@ -1558,6 +1582,16 @@ void stmt_codegen(struct stmt * s, struct decl_function * f)
     stmt_codegen(s->next, f);
 }
 
+void decl_function_arg_codegen(struct function_param * p)
+{
+    if (!p) return;
+
+    int reg = scratch_alloc();
+    fprintf(file, "\tmov\t%s,\t%s\n", scratch_name(reg, p->size), symbol_codegen(p->sym));
+    fprintf(file, "\tmov\t%s,\t%s\n", symbol_codegen(p->sym), scratch_name(reg, p->size));
+    decl_function_arg_codegen(p->next);
+}
+
 void decl_function_codegen(struct decl_function * f)
 {
     if (!f) return;
@@ -1567,7 +1601,7 @@ void decl_function_codegen(struct decl_function * f)
     if (strcmp(f->identifier->name, start) == 0)
     {
         fprintf(file, "_start:\n");
-        int local_var_size = f->variable_count;
+        int local_var_size = f->variable_count + f->parameter_count;
         if (local_var_size > 0)
         {
             fprintf(file, "\tsub\trbp,\t%i\n", local_var_size);
@@ -1575,21 +1609,25 @@ void decl_function_codegen(struct decl_function * f)
 
         stmt_codegen(f->body, f);
 
-        fprintf(file, "\tmov\trax,\t1\n");
         fprintf(file, "\txor\trbx,\trbx\n"); // return code is 0 for now
         fprintf(file, "\tint\t0x80\n");
     }
     else
     {
-        fprintf(file, "%s:\n", f->identifier->name);
+        fprintf(file, "%s%s:\n", "function_", f->identifier->name);
 
         fprintf(file, "\tpush\trbp\n");
         fprintf(file, "\tmov\trbp,\trsp\n");
-
-        int local_var_size = f->variable_count > 3 ? f->variable_count : f->parameter_count;
+        
+        int local_var_size = f->variable_count + f->parameter_count;
         if (local_var_size > 0)
         {
-            //fprintf(file, "    SUBQ $%d, rsp\n", local_var_size * 8);
+            fprintf(file, "\tsub\trbp,\t%i\n", local_var_size);
+        }
+
+        if (f->parameter_count > 0)
+        {
+            decl_function_arg_codegen(f->param);
         }
 
         stmt_codegen(f->body, f);
