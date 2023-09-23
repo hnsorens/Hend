@@ -22,6 +22,7 @@ struct symbol
     int which;
     struct symbol * next;
     int position;
+    int size;
 };
 
 // Identifier
@@ -38,6 +39,10 @@ struct ident
 typedef enum
 {
     PRIMITIVE_VOID,
+    PRIMITIVE_INTEGER_8,
+    PRIMITIVE_INTEGER_16,
+    PRIMITIVE_INTEGER_32,
+    PRIMITIVE_INTEGER_64,
     PRIMITIVE_INTEGER,
     PRIMITIVE_BOOL,
     PRIMITIVE_CHAR
@@ -122,6 +127,7 @@ struct expr
 
     union expr_type * expr_;
     int reg;
+    int size;
 
     struct expr * next;
     
@@ -157,6 +163,8 @@ struct decl_variable
     struct type * type_;
     struct expr * value;
     struct symbol * sym;
+
+    int size;
 };
 
 // Declaration
@@ -244,7 +252,7 @@ struct decl * decl_create_function(struct ident * name, struct param * params, s
     f->return_type = return_type;
     f->body = body;
     f->parameter_count = 0;
-    f->variable_count = 3;
+    f->variable_count = 0;
 
     d->decl_->function = f;
 
@@ -423,6 +431,11 @@ struct type * type_create_name(const char * name)
     return t;
 }
 
+int get_primitive_size()
+{
+
+}
+
 struct decl * decl_create_global_variable(struct type * type_, struct ident * i, struct expr * value, struct decl * next)
 {
     struct decl * d = malloc(sizeof(*d));
@@ -454,6 +467,34 @@ struct decl * decl_create_local_variable(struct type * type_, struct ident * i, 
     v->name = i;
     v->value = value;
     v->type_ = type_;
+
+    if (type_->kind == TYPE_PRIMITIVE)
+    {
+        switch (type_->type_->kind)
+        {
+        case PRIMITIVE_BOOL:
+            v->size = 1;
+            break;
+        case PRIMITIVE_CHAR:
+            v->size = 1;
+            break;
+        case PRIMITIVE_INTEGER_8:
+            v->size = 1;
+            break;
+        case PRIMITIVE_INTEGER_16:
+            v->size = 2;
+            break;
+        case PRIMITIVE_INTEGER_32:
+            v->size = 4;
+            break;
+        case PRIMITIVE_INTEGER_64:
+            v->size = 8;
+            break;
+        
+        default:
+            break;
+        }
+    }
 
     d->decl_->variable = v;
     d->next = next;
@@ -535,13 +576,14 @@ struct scopeStack
     struct scopeStackElement * top;
 };
 
-struct symbol * symbol_create( symbol_t kind, struct type * type, struct ident * name, int position)
+struct symbol * symbol_create( symbol_t kind, struct type * type, struct ident * name, int position, int size)
 {
     struct symbol * s = malloc(sizeof(*s));
     s->identifier = name;
     s->kind = kind;
     s->type = type;
     s->position = position;
+    s->size = size;
 
     return s;
 }
@@ -768,7 +810,7 @@ struct symbol * param_resolve(struct function_param * p, struct decl_function * 
 {
     if (!p || error) return;
 
-    p->sym = symbol_create(SYMBOL_LOCAL, p->type_, p->identifier, f->variable_count);
+    p->sym = symbol_create(SYMBOL_LOCAL, p->type_, p->identifier, f->variable_count, 4); // CHANGE
 
     expr_resolve(p->value, f);
     scope_bind(p->identifier, p->sym);
@@ -790,20 +832,21 @@ void decl_resolve(struct decl * d, struct decl_function * f)
     switch (d->kind)
     {
     case DECL_VARIABLE_GLOBAL:
-        d->decl_->variable->sym = symbol_create(kind, d->decl_->variable->type_, d->decl_->variable->name, 0);
+        d->decl_->variable->sym = symbol_create(kind, d->decl_->variable->type_, d->decl_->variable->name, 0, d->decl_->variable->size);
         expr_resolve(d->decl_->variable->value, 0);
         scope_bind(d->decl_->variable->name, d->decl_->variable->sym);
         break;
     case DECL_VARIABLE_LOCAL:
-        d->decl_->variable->sym = symbol_create(kind, d->decl_->variable->type_, d->decl_->variable->name, f ? f->variable_count : 0);
+        d->decl_->variable->sym = symbol_create(kind, d->decl_->variable->type_, d->decl_->variable->name, f ? f->variable_count : 0, d->decl_->variable->size);
         expr_resolve(d->decl_->variable->value, f);
         scope_bind(d->decl_->variable->name, d->decl_->variable->sym);
+        f->variable_count += d->decl_->variable->size;
         break;
     case DECL_FUNCTION:
 
         symbol_t kind = scope_level() > 0 ? SYMBOL_LOCAL : SYMBOL_GLOBAL;
 
-        d->decl_->function->identifier->sym = symbol_create(kind, d->decl_->function->return_type, d->decl_->function->identifier, 0);
+        d->decl_->function->identifier->sym = symbol_create(kind, d->decl_->function->return_type, d->decl_->function->identifier, 0, 0);
 
         scope_bind(d->decl_->function->identifier, d->decl_->function->identifier->sym);
         
@@ -831,7 +874,6 @@ void stmt_resolve(struct stmt * s, struct decl_function * f)
     {
     case STMT_DECL:
         decl_resolve(s->stmt_->declaration, f);
-        f->variable_count++;
         break;
     case STMT_EXPR:
         expr_resolve(s->stmt_->expression, f);
@@ -852,7 +894,11 @@ int is_num(struct type * t)
 {
     if (t->kind == TYPE_PRIMITIVE)
     {
-        if (t->type_->kind == PRIMITIVE_INTEGER)
+        if (t->type_->kind == PRIMITIVE_INTEGER_8 ||
+            t->type_->kind == PRIMITIVE_INTEGER_16 ||
+            t->type_->kind == PRIMITIVE_INTEGER_32 ||
+            t->type_->kind == PRIMITIVE_INTEGER_64 ||
+            t->type_->kind == PRIMITIVE_INTEGER)
         {
             return 1;
         }
@@ -879,8 +925,17 @@ void type_print(struct type * e)
         case PRIMITIVE_CHAR:
             printf("char");
             break;
-        case PRIMITIVE_INTEGER:
-            printf("integer");
+        case PRIMITIVE_INTEGER_8:
+            printf("int8");
+            break;
+        case PRIMITIVE_INTEGER_16:
+            printf("int16");
+            break;
+        case PRIMITIVE_INTEGER_32:
+            printf("int32");
+            break;
+        case PRIMITIVE_INTEGER_64:
+            printf("int64");
             break;
         
         default:
@@ -1133,21 +1188,24 @@ void code_gen(struct Decl * d)
     registers[6] = 0;
 
     //test();
-    fprintf(file, ".data\n");
-    fprintf(file, "    print_number_format: .asciz \"%%d\\n\"\n");
-    fprintf(file, ".text\n");
-    fprintf(file, ".global main\n");
+    fprintf(file, "\tsection\t.text\n");
+    fprintf(file, "\tglobal\t_start\n\n");
+
+    
 
     //print function
-    fprintf(file, "printNum:\n");
-    fprintf(file, "    PUSH %%rbx\n");
-    fprintf(file, "    LEA print_number_format(%%rip), %%rdi\n");
-    fprintf(file, "    XOR %%eax, %%eax\n");
-    fprintf(file, "    CALL printf\n");
-    fprintf(file, "    POP %%rbx\n");
-    fprintf(file, "    RET\n");
+    // fprintf(file, "printNum:\n");
+    // fprintf(file, "    PUSH rbx\n");
+    // fprintf(file, "    LEA print_number_format(rip), rdi\n");
+    // fprintf(file, "    XOR eax, eax\n");
+    // fprintf(file, "    CALL printf\n");
+    // fprintf(file, "    POP rbx\n");
+    // fprintf(file, "    RET\n");
 
     decl_codegen(d);
+
+    fprintf(file, "\n\tsection .data\n\n");
+    fprintf(file, "message: db\t\"Hello, World\", 10\n");
 }
 
 int scratch_alloc()
@@ -1165,28 +1223,105 @@ int scratch_alloc()
 }
 
 
-const char * scratch_name(int r)
+const char * scratch_name(int r, int size)
 {
-    switch (r)
+
+    switch (size)
     {
-    case 0:
-        return "\%rbx";
     case 1:
-        return "\%r10";
+        switch (r)
+        {
+        case 0:
+            return "bl";
+        case 1:
+            return "r10b";
+        case 2:
+            return "r11b";
+        case 3:
+            return "r12b";
+        case 4:
+            return "r13b";
+        case 5:
+            return "r14b";
+        case 6:
+            return "r15b";
+        
+        default:
+            break;
+        }
+        break;
     case 2:
-        return "\%r11";
-    case 3:
-        return "\%r12";
+        switch (r)
+        {
+        case 0:
+            return "bx";
+        case 1:
+            return "r10w";
+        case 2:
+            return "r11w";
+        case 3:
+            return "r12w";
+        case 4:
+            return "r13w";
+        case 5:
+            return "r14w";
+        case 6:
+            return "r15w";
+        
+        default:
+            break;
+        }
+        break;
     case 4:
-        return "\%r13";
-    case 5:
-        return "\%r14";
-    case 6:
-        return "\%r15";
+        switch (r)
+        {
+        case 0:
+            return "ebx";
+        case 1:
+            return "r10d";
+        case 2:
+            return "r11d";
+        case 3:
+            return "r12d";
+        case 4:
+            return "r13d";
+        case 5:
+            return "r14d";
+        case 6:
+            return "r15d";
+        
+        default:
+            break;
+        }
+        break;
+    case 8:
+        switch (r)
+        {
+        case 0:
+            return "rbx";
+        case 1:
+            return "r10";
+        case 2:
+            return "r11";
+        case 3:
+            return "r12";
+        case 4:
+            return "r13";
+        case 5:
+            return "r14";
+        case 6:
+            return "r15";
+        
+        default:
+            break;
+        }
+        break;
     
     default:
         break;
     }
+
+    
 
     return 0;
 }
@@ -1196,19 +1331,19 @@ const char * get_argument_reg(int i)
     switch (i)
     {
     case 0:
-        return "%rdx";
+        return "rdx";
     case 1:
-        return "%rsi";
+        return "rsi";
     case 2:
-        return "%rdx";
+        return "rdx";
     case 3:
-        return "%rcx";
+        return "rcx";
     case 4:
-        return "%r8";
+        return "r8";
     case 5:
-        return "%r9";
+        return "r9";
     case 6:
-        return "%rax";
+        return "rax";
     
     default:
         break;
@@ -1240,13 +1375,56 @@ const char * symbol_codegen(struct symbol * s)
 
     if (code)
     {
+        
         if (s->type == SYMBOL_GLOBAL)
         {
             snprintf(code, 100, "%s", s->identifier->name);
         }
         else if (s->position != 0)
         {
-            snprintf(code, 100, "%d(%%rbp)", s->position * -8);
+            const char * type;
+            switch (s->size)
+            {
+            case 1:
+                type = "byte";
+                break;
+            case 2:
+                type = "word";
+                break;
+            case 4:
+                type = "dword";
+                break;
+            case 8:
+                type = "qword";
+                break;
+            
+            default:
+                break;
+            }
+            snprintf(code, 100, "%s [rsp + %i]", type, s->position);
+        }
+        else
+        {
+            const char * type;
+            switch (s->size)
+            {
+            case 1:
+                type = "du";
+                break;
+            case 2:
+                type = "duw";
+                break;
+            case 4:
+                type = "dword";
+                break;
+            case 8:
+                type = "qword";
+                break;
+            
+            default:
+                break;
+            }
+            snprintf(code, 100, "%s [rsp]", type);
         }
 
         return code;
@@ -1267,8 +1445,12 @@ void expr_function_call_codegen(struct expr *e)
     if (!strcmp(name, "printf"))
     {      
         expr_codegen(e->expr_->function_call->arguments->value);
-        fprintf(file, "    MOVQ %s, %s\n", symbol_codegen(e->expr_->function_call->arguments->value->expr_->identifier->sym), "%rsi");
-        fprintf(file, "    call printNum\n");
+
+        fprintf(file, "\tmov\teax,\t4\n"); // 4 is print
+        fprintf(file, "\tmov\tebx,\t1\n");
+        fprintf(file, "\tmov\tecx,\t%s\n", "message");
+        fprintf(file, "\tmov\tedx,\t%i\n", 14);
+        fprintf(file, "\tint\t0x80\n");
     }
 }
 
@@ -1281,41 +1463,42 @@ void expr_codegen(struct expr * e)
     case EXPR_ADD:
         expr_codegen(e->expr_->operation->left);
         expr_codegen(e->expr_->operation->right);
-        fprintf(file, "    ADDQ %s, %s\n", scratch_name(e->expr_->operation->left->reg), scratch_name(e->expr_->operation->right->reg));
+        fprintf(file, "\tadd\t%s,\t%s\n", scratch_name(e->expr_->operation->right->reg, 8), scratch_name(e->expr_->operation->left->reg, 8));
         scratch_free(e->expr_->operation->left->reg);
         e->reg = e->expr_->operation->right->reg;
         break;
     case EXPR_SUB:
         expr_codegen(e->expr_->operation->left);
         expr_codegen(e->expr_->operation->right);
-        fprintf(file, "    SUBQ %s, %s\n", scratch_name(e->expr_->operation->left->reg), scratch_name(e->expr_->operation->right->reg));
+        fprintf(file, "\tsub\t%s,\t%s\n", scratch_name(e->expr_->operation->right->reg, 8), scratch_name(e->expr_->operation->left->reg, 8));
         scratch_free(e->expr_->operation->left->reg);
         e->reg = e->expr_->operation->right->reg;
         break;
     case EXPR_MUL:
         expr_codegen(e->expr_->operation->left);
         expr_codegen(e->expr_->operation->right);
-        fprintf(file, "    IMULQ %s, %s\n", scratch_name(e->expr_->operation->left->reg), scratch_name(e->expr_->operation->right->reg));
-        scratch_free(e->expr_->operation->left->reg);
+        fprintf(file, "\tmov\trax,\t%s\n", scratch_name(e->expr_->operation->right->reg, 8));
+        fprintf(file, "\tmul\t%s\n", scratch_name(e->expr_->operation->left->reg, 8));
+        scratch_free(e->expr_->operation->right->reg);
         e->reg = e->expr_->operation->right->reg;
         break;
     case EXPR_DIV:
         expr_codegen(e->expr_->operation->left);
         expr_codegen(e->expr_->operation->right);
-        fprintf(file, "    IDIVQ %s, %s\n", scratch_name(e->expr_->operation->left->reg), scratch_name(e->expr_->operation->right->reg));
+        fprintf(file, "\tdiv\t%s,\t%s\n", scratch_name(e->expr_->operation->right->reg, 8), scratch_name(e->expr_->operation->left->reg, 8));
         scratch_free(e->expr_->operation->left->reg);
         e->reg = e->expr_->operation->right->reg;
         break;
     case EXPR_ASSIGN:
-        expr_codegen(scratch_name(e->expr_->assign->expression));
+        expr_codegen(scratch_name(e->expr_->assign->expression, 8));
         if (e->expr_->assign->expression->kind != EXPR_IDENTIFIER)
         {
             expr_codegen(e->expr_->assign->expression);
-            fprintf(file, "    MOVQ %s, %s", scratch_name(e->expr_->assign->expression->reg), symbol_codegen(e->expr_->assign->identifier->sym));
+            fprintf(file, "\tmov\t%s,\t%s", symbol_codegen(e->expr_->assign->identifier->sym), scratch_name(e->expr_->assign->expression->reg, e->expr_->assign->identifier->sym->size));
         }
         else
         {
-            fprintf(file, "    MOVQ %s, %s\n", symbol_codegen(e->expr_->assign->expression->expr_->identifier->sym), symbol_codegen(e->expr_->assign->identifier->sym));
+            fprintf(file, "\tmov\t%s,\t%s\n", symbol_codegen(e->expr_->assign->identifier->sym), symbol_codegen(e->expr_->assign->expression->expr_->identifier->sym));
         }
         break;
     case EXPR_FUNCTION_CALL:
@@ -1323,15 +1506,15 @@ void expr_codegen(struct expr * e)
         break;
     case EXPR_IDENTIFIER:
         e->reg = scratch_alloc();
-        fprintf(file, "    MOVQ %s, %s\n", symbol_codegen(e->expr_->identifier->sym), scratch_name(e->reg));
+        fprintf(file, "\tmov\t%s,\t%s\n", scratch_name(e->reg, e->expr_->identifier->sym->size), symbol_codegen(e->expr_->identifier->sym));
         break;
     case EXPR_INTEGER:
         e->reg = scratch_alloc();
-        fprintf(file, "    MOVQ $%i, %s\n", e->expr_->integer_value, scratch_name(e->reg));
+        fprintf(file, "\tmov\t%s,\t%i\n", scratch_name(e->reg, 8), e->expr_->integer_value);
         break;
     case EXPR_BOOL:
         e->reg = scratch_alloc();
-        fprintf(file, "    MOVQ $%i, %s\n", e->expr_->integer_value, scratch_name(e->reg));
+        fprintf(file, "\tmov\t%s,\t%i\n", scratch_name(e->reg, 8), e->expr_->integer_value);
         break;
     
     default:
@@ -1353,8 +1536,8 @@ void stmt_codegen(struct stmt * s, struct decl_function * f)
         break;
     case STMT_RETURN:
         expr_codegen(s->stmt_->expression);
-        fprintf(file, "    MOVQ %s, %%rax\n", scratch_name(s->stmt_->expression->reg));
-        fprintf(file, "    JMP .%s_end\n", f->identifier->name);
+        // fprintf(file, "    MOVQ %s, rax\n", scratch_name(s->stmt_->expression->reg));
+        // fprintf(file, "    JMP .%s_end\n", f->identifier->name);
         scratch_free(s->stmt_->expression->reg);
         break;
     
@@ -1369,23 +1552,42 @@ void decl_function_codegen(struct decl_function * f)
 {
     if (!f) return;
 
-    fprintf(file, "%s:\n", f->identifier->name);
-    
-    fprintf(file, "    PUSHQ %%rbp\n");
-    fprintf(file, "    MOVQ %%rsp, %%rbp\n");
+    const char * start = "main";
 
-    int local_var_size = f->variable_count > 3 ? f->variable_count : f->parameter_count;
-    if (local_var_size > 0)
+    if (strcmp(f->identifier->name, start) == 0)
     {
-        fprintf(file, "    SUBQ $%d, %%rsp\n", local_var_size * 8);
+        fprintf(file, "_start:\n");
+        int local_var_size = f->variable_count;
+        if (local_var_size > 0)
+        {
+            fprintf(file, "\tsub\trbp,\t%i\n", local_var_size * 8);
+        }
+
+        stmt_codegen(f->body, f);
+
+        fprintf(file, "\tmov\trax,\t1\n");
+        fprintf(file, "\txor\trbx,\trbx\n"); // return code is 0 for now
+        fprintf(file, "\tint\t0x80\n");
+    }
+    else
+    {
+        fprintf(file, "%s:\n", f->identifier->name);
+
+        fprintf(file, "\tpush\tebp\n");
+        fprintf(file, "\tmov\tebp,\tesp\n");
+
+        int local_var_size = f->variable_count > 3 ? f->variable_count : f->parameter_count;
+        if (local_var_size > 0)
+        {
+            //fprintf(file, "    SUBQ $%d, rsp\n", local_var_size * 8);
+        }
+
+        stmt_codegen(f->body, f);
+
+        fprintf(file, "\tpop\tebp\n");
+        fprintf(file, "\tret\n");
     }
 
-    stmt_codegen(f->body, f);
-
-    fprintf(file, ".%s_end:\n", f->identifier->name);
-    fprintf(file, "    MOVQ %%rbp, %%rsp\n");
-    fprintf(file, "   POPQ %%rbp\n");
-    fprintf(file, "   RET\n");
 
 }
 
@@ -1400,11 +1602,11 @@ void decl_codegen(struct decl * d)
         break;
     case DECL_VARIABLE_GLOBAL:
         expr_codegen(d->decl_->variable->value);
-        fprintf(file, "    MOVQ %s, %s\n", scratch_name(d->decl_->variable->value->reg), symbol_codegen(d->decl_->variable->sym));
+        fprintf(file, "\tMOVQ\t%s,\t%s\n", scratch_name(d->decl_->variable->value->reg, 8), symbol_codegen(d->decl_->variable->sym));
         break;
     case DECL_VARIABLE_LOCAL:
         expr_codegen(d->decl_->variable->value);
-        fprintf(file, "    MOVQ %s, %s\n", scratch_name(d->decl_->variable->value->reg), symbol_codegen(d->decl_->variable->sym));
+        fprintf(file, "\tmov\t%s,\t%s\n", symbol_codegen(d->decl_->variable->sym), scratch_name(d->decl_->variable->value->reg, d->decl_->variable->sym->size));
         break;
 
     

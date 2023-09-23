@@ -65,6 +65,7 @@ param:
     ;
 
 exp:
+    | LPAREN exp RPAREN {$$ = $2;}
     | IDENTIFIER { $$ = expr_create_name($1); }
     | NUM { $$ = expr_create_integer($1); }
     | STRING_VALUE { $$ = 0; }
@@ -93,10 +94,10 @@ type:
     { $$ = 0;}
     | VOID { $$ = type_create_primitive(PRIMITIVE_VOID); }
     | ident { $$ = $1; }
-    | I1 { $$ = type_create_primitive(PRIMITIVE_INTEGER); }
-    | I2 { $$ = type_create_primitive(PRIMITIVE_INTEGER); }
-    | I4 { $$ = type_create_primitive(PRIMITIVE_INTEGER); }
-    | I8 { $$ = type_create_primitive(PRIMITIVE_INTEGER); }
+    | I1 { $$ = type_create_primitive(PRIMITIVE_INTEGER_8); }
+    | I2 { $$ = type_create_primitive(PRIMITIVE_INTEGER_16); }
+    | I4 { $$ = type_create_primitive(PRIMITIVE_INTEGER_32); }
+    | I8 { $$ = type_create_primitive(PRIMITIVE_INTEGER_64); }
     | BOOLEAN { $$ = type_create_primitive(PRIMITIVE_BOOL); }
     | CHARACTER { $$ = type_create_primitive(PRIMITIVE_CHAR); }
     | STRING { $$ = 0; }
@@ -137,7 +138,7 @@ int main() {
     if (!error)
     decl_typecheck(code);
 
-    file = fopen("assembly.s", "w+");
+    file = fopen("assembly.asm", "w+");
 
     code_gen(code);
 
