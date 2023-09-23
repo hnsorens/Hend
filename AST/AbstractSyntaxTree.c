@@ -1655,6 +1655,10 @@ void decl_function_codegen(struct decl_function * f)
     if (strcmp(f->identifier->name, start) == 0)
     {
         fprintf(file, "_start:\n");
+
+        fprintf(file, "\tpush\trbp\n");
+        fprintf(file, "\tmov\trbp,\trsp\n");
+
         int local_var_size = f->variable_count;
         if (local_var_size > 0)
         {
@@ -1668,6 +1672,7 @@ void decl_function_codegen(struct decl_function * f)
             fprintf(file, "\tadd\trsp,\t%i\n", local_var_size);
         }
 
+        fprintf(file, "\tpop\trbp\n");
         fprintf(file, "\txor\trbx,\trbx\n"); // return code is 0 for now
         fprintf(file, "\tint\t0x80\n");
     }

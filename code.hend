@@ -3,7 +3,9 @@ fn main() int4
 {
 
     
-    add(1, 2);
+    add(1, false);
+
+    int4 k: 1 + 2;
 
     ret 1;
 }
