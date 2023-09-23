@@ -33,6 +33,7 @@ struct ident
     struct symbol * sym;
     struct type * type_;
     const char * name;
+    int offset;
 };
 
 // Type
@@ -371,6 +372,7 @@ struct expr * expr_create_name(const char * name, int offset)
 
     struct ident * i = malloc(sizeof(*i));
     i->name = name;
+    i->offset = offset;
 
     e->expr_->identifier = i;
 
@@ -410,7 +412,7 @@ struct expr * expr_create_assign(struct ident * identifier, struct expr * R)
     a->identifier = identifier;
     a->expression = R;
 
-    e->expr_->assign = e;
+    e->expr_->assign = a;
 
     return e;
 }
@@ -632,10 +634,11 @@ struct stmt * stmt_create_decl(struct decl * declaration, struct stmt * next)
     return s;
 }
 
-struct ident * ident_create(const char * name)
+struct ident * ident_create(const char * name, int offset)
 {
     struct ident * i = malloc(sizeof(*i));
     i->name = name;
+    i->offset = offset;
 
     return i;
 }
@@ -730,8 +733,6 @@ void symbol_insert(struct symbolTable * table, struct ident * identifier, struct
 struct symbol * symbol_find(struct symbolTable * table, struct ident * identifier)
 {
     if (!table || !identifier) return 0;
-
-    printf("%s\n", identifier->name);
 
     unsigned int hash = 0;
     for (const char * p = identifier->name; * p != '\0'; p++)
@@ -885,7 +886,6 @@ void expr_resolve(struct expr * e, struct decl_function * f)
     case EXPR_BOOL:
         break;
     case EXPR_ASSIGN:
-        printf("%i\n", e->expr_->assign->identifier->name);
         ident_resolve(e->expr_->assign->identifier);
         expr_resolve(e->expr_->assign->expression, f);
         break;
@@ -964,7 +964,7 @@ void decl_resolve(struct decl * d, struct decl_function * f)
             {
             case TYPE_SPEC_ARRAY:
                 f->variable_count += d->decl_->variable->size * get_array_size(d->decl_->variable->type_->type_specifier->sub);
-                d->decl_->variable->sym = symbol_create(kind, d->decl_->variable->type_, d->decl_->variable->name, f ? f->variable_count : 0, d->decl_->variable->size * get_array_size(d->decl_->variable->type_->type_specifier->sub));
+                d->decl_->variable->sym = symbol_create(kind, d->decl_->variable->type_, d->decl_->variable->name, f ? f->variable_count : 0, d->decl_->variable->size);
                 expr_resolve(d->decl_->variable->value, f);
                 scope_bind(d->decl_->variable->name, d->decl_->variable->sym);
                 break;
@@ -1509,7 +1509,7 @@ const char * label_name(int label)
     return text;
 }
 
-const char * symbol_codegen(struct symbol * s)
+const char * symbol_codegen(struct symbol * s, int offset)
 {
     if (!s) return;
 
@@ -1545,7 +1545,7 @@ const char * symbol_codegen(struct symbol * s)
                 default:
                     break;
                 }
-                snprintf(code, 100, "%s [rbp - %i]", type, s->position);
+                snprintf(code, 100, "%s [rbp - %i]", type, s->position - (offset * s->size));
             }
             else
             {
@@ -1568,7 +1568,14 @@ const char * symbol_codegen(struct symbol * s)
                 default:
                     break;
                 }
-                snprintf(code, 100, "%s [rbp]", type);
+                if (offset != 0)
+                {
+                    snprintf(code, 100, "%s [rbp + %i]", type, (offset * s->size));
+                }
+                else
+                {
+                    snprintf(code, 100, "%s [rbp]", type);
+                }
             }
         }
         else
@@ -1594,7 +1601,7 @@ const char * symbol_codegen(struct symbol * s)
                 default:
                     break;
                 }
-                snprintf(code, 100, "%s [rbp + %i]", type, s->position + 16);
+                snprintf(code, 100, "%s [rbp + %i]", type, s->position + 16 + (offset * s->size));
             }
             else
             {
@@ -1617,7 +1624,7 @@ const char * symbol_codegen(struct symbol * s)
                 default:
                     break;
                 }
-                snprintf(code, 100, "%s [rbp + %i]", type, 16);
+                snprintf(code, 100, "%s [rbp + %i]", type, 16 + (offset * s->size));
             }
             
         }
@@ -1707,11 +1714,12 @@ void expr_codegen(struct expr * e)
         if (e->expr_->assign->expression->kind != EXPR_IDENTIFIER)
         {
             expr_codegen(e->expr_->assign->expression);
-            fprintf(file, "\tmov\t%s,\t%s", symbol_codegen(e->expr_->assign->identifier->sym), scratch_name(e->expr_->assign->expression->reg, e->expr_->assign->identifier->sym->size));
+            fprintf(file, "\tmov\t%s,\t%s\n", symbol_codegen(e->expr_->assign->identifier->sym, e->expr_->assign->identifier->offset), scratch_name(e->expr_->assign->expression->reg, e->expr_->assign->identifier->sym->size));
+            scratch_free(e->expr_->assign->expression->reg);
         }
         else
         {
-            fprintf(file, "\tmov\t%s,\t%s\n", symbol_codegen(e->expr_->assign->identifier->sym), symbol_codegen(e->expr_->assign->expression->expr_->identifier->sym));
+            fprintf(file, "\tmov\t%s,\t%s\n", symbol_codegen(e->expr_->assign->identifier->sym, e->expr_->assign->identifier->offset), symbol_codegen(e->expr_->assign->expression->expr_->identifier->sym, e->expr_->assign->expression->expr_->identifier->offset));
         }
         break;
     case EXPR_FUNCTION_CALL:
@@ -1721,7 +1729,7 @@ void expr_codegen(struct expr * e)
         break;
     case EXPR_IDENTIFIER:
         e->reg = scratch_alloc();
-        fprintf(file, "\tmov\t%s,\t%s\n", scratch_name(e->reg, e->expr_->identifier->sym->size), symbol_codegen(e->expr_->identifier->sym));
+        fprintf(file, "\tmov\t%s,\t%s\n", scratch_name(e->reg, e->expr_->identifier->sym->size), symbol_codegen(e->expr_->identifier->sym, e->expr_->identifier->offset));
         break;
     case EXPR_INTEGER:
         e->reg = scratch_alloc();
@@ -1768,8 +1776,8 @@ void decl_function_arg_codegen(struct function_param * p)
     if (!p) return;
 
     int reg = scratch_alloc();
-    fprintf(file, "\tmov\t%s,\t%s\n", scratch_name(reg, p->size), symbol_codegen(p->sym));
-    fprintf(file, "\tmov\t%s,\t%s\n", symbol_codegen(p->sym), scratch_name(reg, p->size));
+    fprintf(file, "\tmov\t%s,\t%s\n", scratch_name(reg, p->size), symbol_codegen(p->sym, 0));
+    fprintf(file, "\tmov\t%s,\t%s\n", symbol_codegen(p->sym, 0), scratch_name(reg, p->size));
     decl_function_arg_codegen(p->next);
 }
 
@@ -1843,14 +1851,14 @@ void decl_codegen(struct decl * d)
         if (d->decl_->variable->value)
         {
             expr_codegen(d->decl_->variable->value);
-            fprintf(file, "\tMOVQ\t%s,\t%s\n", scratch_name(d->decl_->variable->value->reg, 8), symbol_codegen(d->decl_->variable->sym));
+            fprintf(file, "\tMOVQ\t%s,\t%s\n", scratch_name(d->decl_->variable->value->reg, 8), symbol_codegen(d->decl_->variable->sym, 0));
         }
         break;
     case DECL_VARIABLE_LOCAL:
         if (d->decl_->variable->value)
         {   
             expr_codegen(d->decl_->variable->value);
-            fprintf(file, "\tmov\t%s,\t%s\n", symbol_codegen(d->decl_->variable->sym), scratch_name(d->decl_->variable->value->reg, d->decl_->variable->sym->size));
+            fprintf(file, "\tmov\t%s,\t%s\n", symbol_codegen(d->decl_->variable->sym, 0), scratch_name(d->decl_->variable->value->reg, d->decl_->variable->sym->size));
         }
         
         break;

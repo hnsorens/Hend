@@ -15,6 +15,20 @@ _start:
 	mov	r11,	2
 	add	r11,	r10
 	mov	dword [rbp - 4],	r11d
+	mov	r10,	20
+	mov	dword [rbp - 80],	r10d
+	mov	r10,	20
+	mov	dword [rbp - 76],	r10d
+	mov	r10,	20
+	mov	dword [rbp - 72],	r10d
+	mov	r10,	20
+	mov	dword [rbp - 68],	r10d
+	mov	r10,	20
+	mov	dword [rbp - 64],	r10d
+	mov	r10,	20
+	mov	dword [rbp - 60],	r10d
+	mov	r10,	20
+	mov	dword [rbp - 56],	r10d
 	mov	r10,	1
 	mov	rax,	r10
 	add	rsp,	84

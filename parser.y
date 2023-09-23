@@ -124,7 +124,8 @@ statement:
     ;
 
 ident:
-    IDENTIFIER { $$ = ident_create($1); }
+    IDENTIFIER { $$ = ident_create($1, 0); }
+    | IDENTIFIER LBRACKET NUM RBRACKET { $$ = ident_create($1, $3); }
     ;
 
 
