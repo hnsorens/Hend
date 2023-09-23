@@ -7,22 +7,24 @@ _start:
 	mov	rbx,	2
 	push	rbx
 	call	function_add
-	mov	rbx,	1
-	mov	rax,	rbx
+	mov	rbx,	rax
+	mov	r10,	1
+	mov	rax,	r10
 	xor	rbx,	rbx
 	int	0x80
 function_add:
 	push	rbp
 	mov	rbp,	rsp
-	sub	rbp,	4
-	mov	bx,	word [rbp + 2]
-	mov	word [rsp + 2],	bx
-	mov	r10w,	word [rbp + 4]
-	mov	word [rsp + 4],	r10w
-	mov	r11w,	word [rsp + 2]
-	mov	r12w,	word [rsp + 4]
-	add	r12,	r11
+	sub	rsp,	4
+	mov	r10,	2
+	mov	r11,	1
+	add	r11,	r10
+	mov	dword [rbp - 4],	r11d
+	mov	r10d,	dword [rbp + 16]
+	mov	r12d,	dword [rbp + 24]
+	add	r12,	r10
 	mov	rax,	r12
+	add	rsp,	4
 	pop	rbp
 	ret
 

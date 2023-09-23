@@ -2,13 +2,14 @@
 fn main() int4
 {
 
+    
     add(1, 2);
-
 
     ret 1;
 }
 
-fn add(int2 a, int2 b) int4
+fn add(int4 a, int4 b) int4
 {
+    int4 k: 2+1;
     ret a + b;
 }

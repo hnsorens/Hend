@@ -23,6 +23,7 @@ struct symbol
     struct symbol * next;
     int position;
     int size;
+    int isParam;
 };
 
 // Identifier
@@ -746,11 +747,6 @@ struct symbol * scope_lookup_current(struct ident * identifier)
 
 // Resolve
 
-struct symbol * function_param_resolve(struct decl_function * f)
-{
-
-}
-
 void expr_function_call_arg_resolve(struct expr_function_arg * a, struct decl_function * f)
 {
     if (!a || error) return;
@@ -827,13 +823,14 @@ struct symbol * param_resolve(struct function_param * p, struct decl_function * 
     if (!p || error) return;
 
     p->sym = symbol_create(SYMBOL_LOCAL, p->type_, p->identifier, f->variable_count, p->size);
+    p->sym->isParam = 1;
 
     expr_resolve(p->value, f);
     scope_bind(p->identifier, p->sym);
-
-    f->parameter_count += p->size;
     
     p->sym->position = f->parameter_count;
+
+    f->parameter_count += 8;
 
     p->sym->next = param_resolve(p->next, f);
 
@@ -854,10 +851,11 @@ void decl_resolve(struct decl * d, struct decl_function * f)
         scope_bind(d->decl_->variable->name, d->decl_->variable->sym);
         break;
     case DECL_VARIABLE_LOCAL:
+        f->variable_count += d->decl_->variable->size;
         d->decl_->variable->sym = symbol_create(kind, d->decl_->variable->type_, d->decl_->variable->name, f ? f->variable_count : 0, d->decl_->variable->size);
         expr_resolve(d->decl_->variable->value, f);
         scope_bind(d->decl_->variable->name, d->decl_->variable->sym);
-        f->variable_count += d->decl_->variable->size;
+        
         break;
     case DECL_FUNCTION:
 
@@ -1393,56 +1391,110 @@ const char * symbol_codegen(struct symbol * s)
     if (code)
     {
         
-        if (s->type == SYMBOL_GLOBAL)
+        if (!s->isParam)
         {
-            snprintf(code, 100, "%s", s->identifier->name);
-        }
-        else if (s->position != 0)
-        {
-            const char * type;
-            switch (s->size)
+            if (s->type == SYMBOL_GLOBAL)
             {
-            case 1:
-                type = "byte";
-                break;
-            case 2:
-                type = "word";
-                break;
-            case 4:
-                type = "dword";
-                break;
-            case 8:
-                type = "qword";
-                break;
-            
-            default:
-                break;
+                snprintf(code, 100, "%s", s->identifier->name);
             }
-            snprintf(code, 100, "%s [rsp + %i]", type, s->position);
+            else if (s->position != 0)
+            {
+                const char * type;
+                switch (s->size)
+                {
+                case 1:
+                    type = "byte";
+                    break;
+                case 2:
+                    type = "word";
+                    break;
+                case 4:
+                    type = "dword";
+                    break;
+                case 8:
+                    type = "qword";
+                    break;
+                
+                default:
+                    break;
+                }
+                snprintf(code, 100, "%s [rbp - %i]", type, s->position);
+            }
+            else
+            {
+                const char * type;
+                switch (s->size)
+                {
+                case 1:
+                    type = "byte";
+                    break;
+                case 2:
+                    type = "word";
+                    break;
+                case 4:
+                    type = "dword";
+                    break;
+                case 8:
+                    type = "qword";
+                    break;
+                
+                default:
+                    break;
+                }
+                snprintf(code, 100, "%s [rbp]", type);
+            }
         }
         else
         {
-            const char * type;
-            switch (s->size)
+            if (s->position != 0)
             {
-            case 1:
-                type = "byte";
-                break;
-            case 2:
-                type = "word";
-                break;
-            case 4:
-                type = "dword";
-                break;
-            case 8:
-                type = "qword";
-                break;
-            
-            default:
-                break;
+                const char * type;
+                switch (s->size)
+                {
+                case 1:
+                    type = "byte";
+                    break;
+                case 2:
+                    type = "word";
+                    break;
+                case 4:
+                    type = "dword";
+                    break;
+                case 8:
+                    type = "qword";
+                    break;
+                
+                default:
+                    break;
+                }
+                snprintf(code, 100, "%s [rbp + %i]", type, s->position + 16);
             }
-            snprintf(code, 100, "%s [rsp]", type);
+            else
+            {
+                const char * type;
+                switch (s->size)
+                {
+                case 1:
+                    type = "byte";
+                    break;
+                case 2:
+                    type = "word";
+                    break;
+                case 4:
+                    type = "dword";
+                    break;
+                case 8:
+                    type = "qword";
+                    break;
+                
+                default:
+                    break;
+                }
+                snprintf(code, 100, "%s [rbp + %i]", type, 16);
+            }
+            
         }
+        
 
         return code;
     }
@@ -1537,6 +1589,8 @@ void expr_codegen(struct expr * e)
         break;
     case EXPR_FUNCTION_CALL:
         expr_function_call_codegen(e);
+        e->reg = scratch_alloc();
+        fprintf(file, "\tmov\t%s,\trax\n", scratch_name(e->reg, 8));
         break;
     case EXPR_IDENTIFIER:
         e->reg = scratch_alloc();
@@ -1601,13 +1655,18 @@ void decl_function_codegen(struct decl_function * f)
     if (strcmp(f->identifier->name, start) == 0)
     {
         fprintf(file, "_start:\n");
-        int local_var_size = f->variable_count + f->parameter_count;
+        int local_var_size = f->variable_count;
         if (local_var_size > 0)
         {
-            fprintf(file, "\tsub\trbp,\t%i\n", local_var_size);
+            fprintf(file, "\tsub\trsp,\t%i\n", local_var_size);
         }
 
         stmt_codegen(f->body, f);
+
+        if (local_var_size > 0)
+        {
+            fprintf(file, "\tadd\trsp,\t%i\n", local_var_size);
+        }
 
         fprintf(file, "\txor\trbx,\trbx\n"); // return code is 0 for now
         fprintf(file, "\tint\t0x80\n");
@@ -1619,18 +1678,18 @@ void decl_function_codegen(struct decl_function * f)
         fprintf(file, "\tpush\trbp\n");
         fprintf(file, "\tmov\trbp,\trsp\n");
         
-        int local_var_size = f->variable_count + f->parameter_count;
+        int local_var_size = f->variable_count;
         if (local_var_size > 0)
         {
-            fprintf(file, "\tsub\trbp,\t%i\n", local_var_size);
-        }
-
-        if (f->parameter_count > 0)
-        {
-            decl_function_arg_codegen(f->param);
+            fprintf(file, "\tsub\trsp,\t%i\n", local_var_size);
         }
 
         stmt_codegen(f->body, f);
+
+        if (local_var_size > 0)
+        {
+            fprintf(file, "\tadd\trsp,\t%i\n", local_var_size);
+        }
 
         fprintf(file, "\tpop\trbp\n");
         fprintf(file, "\tret\n");
