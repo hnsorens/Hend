@@ -2,7 +2,7 @@
 	global	_start
 
 _start:
-	sub	rbp,	80
+	sub	rbp,	10
 	mov	rbx,	20
 	mov	r10,	20
 	mov	r11,	3
@@ -20,9 +20,19 @@ _start:
 	sub	r12,	r12
 	mov	word [rsp + 8],	r12w
 	mov	r12,	1
+	mov	rax,	r12
 	mov	rax,	1
 	xor	rbx,	rbx
 	int	0x80
+add:
+	push	rbp
+	mov	rbp,	rsp
+	mov	r12d,	dword [rsp + 1]
+	mov	r13d,	dword [rsp + 2]
+	add	r13,	r12
+	mov	rax,	r13
+	pop	rbp
+	ret
 
 	section .data
 

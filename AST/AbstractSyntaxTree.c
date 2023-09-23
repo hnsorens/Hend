@@ -153,6 +153,7 @@ struct decl_function
     struct stmt * body;
     int variable_count;
     int parameter_count;
+    int return_size;
 };
 
 // Var
@@ -253,6 +254,15 @@ struct decl * decl_create_function(struct ident * name, struct param * params, s
     f->body = body;
     f->parameter_count = 0;
     f->variable_count = 0;
+    if (return_type->kind == TYPE_PRIMITIVE)
+    {
+        f->return_size = get_primitive_size(return_type->type_->kind);
+    }
+    else
+    {
+        f->return_size = 0;
+    }
+    
 
     d->decl_->function = f;
 
@@ -431,11 +441,6 @@ struct type * type_create_name(const char * name)
     return t;
 }
 
-int get_primitive_size()
-{
-
-}
-
 struct decl * decl_create_global_variable(struct type * type_, struct ident * i, struct expr * value, struct decl * next)
 {
     struct decl * d = malloc(sizeof(*d));
@@ -455,6 +460,34 @@ struct decl * decl_create_global_variable(struct type * type_, struct ident * i,
     return d;
 }
 
+int get_primitive_size(type_t t)
+{
+    switch (t)
+        {
+        case PRIMITIVE_BOOL:
+            return 1;
+            break;
+        case PRIMITIVE_CHAR:
+            return 1;
+            break;
+        case PRIMITIVE_INTEGER_8:
+            return 1;
+            break;
+        case PRIMITIVE_INTEGER_16:
+            return 2;
+            break;
+        case PRIMITIVE_INTEGER_32:
+            return 4;
+            break;
+        case PRIMITIVE_INTEGER_64:
+            return 8;
+            break;
+        
+        default:
+            break;
+        }
+}
+
 struct decl * decl_create_local_variable(struct type * type_, struct ident * i, struct expr * value, struct decl * next)
 {
     struct decl * d = malloc(sizeof(*d));
@@ -470,30 +503,7 @@ struct decl * decl_create_local_variable(struct type * type_, struct ident * i, 
 
     if (type_->kind == TYPE_PRIMITIVE)
     {
-        switch (type_->type_->kind)
-        {
-        case PRIMITIVE_BOOL:
-            v->size = 1;
-            break;
-        case PRIMITIVE_CHAR:
-            v->size = 1;
-            break;
-        case PRIMITIVE_INTEGER_8:
-            v->size = 1;
-            break;
-        case PRIMITIVE_INTEGER_16:
-            v->size = 2;
-            break;
-        case PRIMITIVE_INTEGER_32:
-            v->size = 4;
-            break;
-        case PRIMITIVE_INTEGER_64:
-            v->size = 8;
-            break;
-        
-        default:
-            break;
-        }
+        v->size = get_primitive_size(type_->type_->kind);
     }
 
     d->decl_->variable = v;
@@ -1536,7 +1546,7 @@ void stmt_codegen(struct stmt * s, struct decl_function * f)
         break;
     case STMT_RETURN:
         expr_codegen(s->stmt_->expression);
-        // fprintf(file, "    MOVQ %s, rax\n", scratch_name(s->stmt_->expression->reg));
+        fprintf(file, "\tmov\trax,\t%s\n", scratch_name(s->stmt_->expression->reg, 8));
         // fprintf(file, "    JMP .%s_end\n", f->identifier->name);
         scratch_free(s->stmt_->expression->reg);
         break;
@@ -1560,7 +1570,7 @@ void decl_function_codegen(struct decl_function * f)
         int local_var_size = f->variable_count;
         if (local_var_size > 0)
         {
-            fprintf(file, "\tsub\trbp,\t%i\n", local_var_size * 8);
+            fprintf(file, "\tsub\trbp,\t%i\n", local_var_size);
         }
 
         stmt_codegen(f->body, f);
@@ -1573,8 +1583,8 @@ void decl_function_codegen(struct decl_function * f)
     {
         fprintf(file, "%s:\n", f->identifier->name);
 
-        fprintf(file, "\tpush\tebp\n");
-        fprintf(file, "\tmov\tebp,\tesp\n");
+        fprintf(file, "\tpush\trbp\n");
+        fprintf(file, "\tmov\trbp,\trsp\n");
 
         int local_var_size = f->variable_count > 3 ? f->variable_count : f->parameter_count;
         if (local_var_size > 0)
@@ -1584,7 +1594,7 @@ void decl_function_codegen(struct decl_function * f)
 
         stmt_codegen(f->body, f);
 
-        fprintf(file, "\tpop\tebp\n");
+        fprintf(file, "\tpop\trbp\n");
         fprintf(file, "\tret\n");
     }
 
