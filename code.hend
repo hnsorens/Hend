@@ -2,26 +2,11 @@
 fn main() int4
 {
 
-    
-    add(1, false);
+    int4[10] k;
+    k[8]: 10;
 
-    int4 k: 1 + 2;
-
-    int4[2, 5, 2] l;
-
-    l[1]: 20;
-    l[2]: 20;
-    l[3]: 20;
-    l[4]: 20;
-    l[5]: 20;
-    l[6]: 20;
-    l[7]: 20;
+    printNum(k[8]);
 
     ret 1;
 }
 
-fn add(int4 a, int4 b) int4
-{
-    int4 k: 2+1;
-    ret a + b;
-}

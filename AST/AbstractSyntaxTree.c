@@ -90,6 +90,12 @@ struct expr_function_call
     // more
 };
 
+struct data_variable
+{
+    const char * text;
+    struct data_variable * next;
+};
+
 // Operation
 
 struct expr_operation
@@ -837,6 +843,7 @@ void expr_function_call_arg_resolve(struct expr_function_arg * a, struct decl_fu
     expr_resolve(a->value, f);
 
     expr_function_call_arg_resolve(a->next, f);
+
 }
 
 void expr_function_call_resolve(struct expr_function_call * c, struct decl_function * f)
@@ -882,8 +889,10 @@ void expr_resolve(struct expr * e, struct decl_function * f)
         ident_resolve(e->expr_->identifier);
         break;
     case EXPR_INTEGER:
+        e->size = 8;
         break;
     case EXPR_BOOL:
+        e->size = 8;
         break;
     case EXPR_ASSIGN:
         ident_resolve(e->expr_->assign->identifier);
@@ -1034,6 +1043,7 @@ void stmt_resolve(struct stmt * s, struct decl_function * f)
 
 int is_num(struct type * t)
 {
+    if (!t->kind) return;
     if (t->kind == TYPE_PRIMITIVE)
     {
         if (t->type_->kind == PRIMITIVE_INTEGER_8 ||
@@ -1050,6 +1060,11 @@ int is_num(struct type * t)
 
 void type_print(struct type * e)
 {
+    if (!e)
+    {
+        printf("NOT DEFINED");
+        return;
+    }
     switch (e->kind)
     {
     case TYPE_NAME:
@@ -1234,6 +1249,7 @@ void param_typecheck(struct function_param * p)
 
 int type_equal(struct type * L, struct type * R)
 {
+    if (!L || !R) return 0;
     if (is_num(L) && is_num(R)) return 1;
     if (L->kind == TYPE_PRIMITIVE && R->kind == TYPE_PRIMITIVE)
     {
@@ -1331,7 +1347,20 @@ void code_gen(struct Decl * d)
 
     //test();
     fprintf(file, "\tsection\t.text\n");
-    fprintf(file, "\tglobal\t_start\n\n");
+    fprintf(file, "\tdefault rel\n");
+    fprintf(file, "\textern printf\n");
+    fprintf(file, "\tglobal\tmain\n");
+
+    fprintf(file, "function_printNum:\n");
+    fprintf(file, "\tpush\trbp\n");
+    fprintf(file, "\tmov\trbp,\trsp\n");
+    fprintf(file, "\tmov\trdi,\tnum_fmt\n");
+    fprintf(file, "\tmov\trsi,\t[rbp + 16]\n");
+    fprintf(file, "\tmov\trax,\t0\n");
+    fprintf(file, "\tcall\tprintf\twrt\t..plt\n");
+    fprintf(file, "\tpop\trbp\n");
+    fprintf(file, "\tmov\trax,\t1\n");
+    fprintf(file, "\tret\n");
 
     
 
@@ -1347,7 +1376,7 @@ void code_gen(struct Decl * d)
     decl_codegen(d);
 
     fprintf(file, "\n\tsection .data\n\n");
-    fprintf(file, "message: db\t\"Hello, World\", 10\n");
+    fprintf(file, "num_fmt: db\t\"%%i\", 10, 0\n");
 }
 
 int scratch_alloc()
@@ -1639,6 +1668,37 @@ const char * symbol_codegen(struct symbol * s, int offset)
     }
 }
 
+void push_padding(int size)
+{
+    int s = size;
+    if (s >= 8)
+    {
+        fprintf(file, "\tpush\tqword\t0\n");
+        size-=8;
+    }
+    if (s >= 4)
+    {
+        fprintf(file, "\tpush\tdword\t0\n");
+        size-=4;
+    }
+    if (s >= 2)
+    {
+        fprintf(file, "\tpush\tword\t0\n");
+        size-=2;
+    }
+    if (s >= 1)
+    {
+        fprintf(file, "\tpush\tbyte\t0\n");
+        size-=1;
+    }
+}
+
+int get_num_args(struct expr_function_arg * arg)
+{
+    if (!arg) return 0;
+    return 1 + get_num_args(arg->next);
+}
+
 void expr_function_call_arg_codegen(struct expr_function_arg * a)
 {
     if (!a) return;
@@ -1650,24 +1710,29 @@ void expr_function_call_arg_codegen(struct expr_function_arg * a)
     expr_function_call_arg_codegen(a->next);
 }
 
+
+
 void expr_function_call_codegen(struct expr *e)
 {
     if (!e) return;
 
     const char * name = e->expr_->function_call->identifier->name;
 
-    if (!strcmp(name, "printf"))
+    if (!strcmp(name, "print"))
     {      
         expr_codegen(e->expr_->function_call->arguments->value);
 
-        fprintf(file, "\tmov\teax,\t4\n"); // 4 is print
-        fprintf(file, "\tmov\tebx,\t1\n");
-        fprintf(file, "\tmov\tecx,\t%s\n", "message");
-        fprintf(file, "\tmov\tedx,\t%i\n", 14);
-        fprintf(file, "\tint\t0x80\n");
+        expr_codegen(e->expr_->function_call->arguments->value);
+        fprintf(file, "\tmov\trdi,\tnum_fmt\n"); // 4 is print
+        fprintf(file, "\tmov\trsi,\t%s\n", scratch_name(e->expr_->function_call->arguments->value->reg, 8));
+        fprintf(file, "\tmov\trax,\t0\n");
+        fprintf(file, "\tcall\tprintf\n");
+        scratch_free(e->expr_->function_call->arguments->value->reg);
     }
     else
     {
+        if (get_num_args(e->expr_->function_call->arguments)%2 == 1)
+        fprintf(file, "\tpush\tqword\t0\n");
         expr_function_call_arg_codegen(e->expr_->function_call->arguments);
 
         fprintf(file, "\tcall\t%s%s\n", "function_", e->expr_->function_call->identifier->name);
@@ -1789,12 +1854,14 @@ void decl_function_codegen(struct decl_function * f)
 
     if (strcmp(f->identifier->name, start) == 0)
     {
-        fprintf(file, "_start:\n");
+        fprintf(file, "main:\n");
 
         fprintf(file, "\tpush\trbp\n");
         fprintf(file, "\tmov\trbp,\trsp\n");
 
         int local_var_size = f->variable_count;
+        if (local_var_size%16 > 0)
+        local_var_size = local_var_size + 16 - local_var_size%16;
         if (local_var_size > 0)
         {
             fprintf(file, "\tsub\trsp,\t%i\n", local_var_size);
@@ -1819,6 +1886,8 @@ void decl_function_codegen(struct decl_function * f)
         fprintf(file, "\tmov\trbp,\trsp\n");
         
         int local_var_size = f->variable_count;
+        if (local_var_size%16 > 0)
+        local_var_size = local_var_size + 16 - local_var_size%16;
         if (local_var_size > 0)
         {
             fprintf(file, "\tsub\trsp,\t%i\n", local_var_size);
