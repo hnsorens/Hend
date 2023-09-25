@@ -1,0 +1,70 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build Compiler",
+            "type": "shell",
+            "command": "bison -d parser.y && flex lexer.l && gcc -o compiler lex.yy.c parser.tab.c -lfl && ./compiler < code.hend && nasm -f elf64 assembly.asm -o assembly.o && gcc -o assembly assembly.o -no-pie && ./assembly",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Run Assembly Code",
+            "type": "shell",
+            "command": "nasm -f elf64 assembly.asm -o assembly.o && gcc -o assembly assembly.o -no-pie && ./assembly",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Build And Run Hend",
+            "type": "shell",
+            "command": "./compiler < code.hend && nasm -f elf64 assembly.asm -o assembly.o && gcc -o assembly assembly.o -no-pie && ./assembly",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Run Hend",
+            "type": "shell",
+            "command": "./assembly",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Build Hend",
+            "type": "shell",
+            "command": "./compiler < code.hend && nasm -f elf64 assembly.asm -o assembly.o && gcc -o assembly assembly.o -no-pie",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always"
+            },
+            "problemMatcher": []
+        }
+    ]
+}

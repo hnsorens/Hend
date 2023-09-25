@@ -7,6 +7,30 @@ fn main() int4
 
     printNum(k[8]);
 
+    if (false)
+    {
+        int4 t: 1123;
+        printNum(add(k[8], 10));
+    }
+    else if (false)
+    {
+        printNum(134);
+    }
+    else if (false)
+    {
+        printNum(1);
+    }
+    else
+    {
+        printNum(134123);
+    }
+
+
     ret 1;
+
 }
 
+fn add(int4 a, int4 b) int4
+{
+    ret a + b;
+}

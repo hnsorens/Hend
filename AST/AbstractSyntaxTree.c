@@ -255,8 +255,25 @@ typedef enum
 {
     STMT_EXPR,
     STMT_DECL,
-    STMT_RETURN
+    STMT_RETURN,
+    STMT_IF,
+    STMT_ELSE_IF,
+    STMT_ELSE,
+    STMT_WHILE
 } stmt_t;
+
+struct if_stmt
+{
+    struct expr * expression;
+    struct stmt * statement;
+
+    struct stmt * else_stmt;
+};
+
+struct while_stmt
+{
+
+};
 
 struct stmt
 {
@@ -266,6 +283,7 @@ struct stmt
     {
         struct expr * expression;
         struct decl * declaration;
+        struct if_stmt * if_stmt;
     };
 
     union stmt_type * stmt_;
@@ -295,6 +313,68 @@ struct decl * decl_create(decl_t kind)
     d->kind = kind;
 
     return d;
+}
+
+struct stmt * stmt_create_if(struct expr * expression, struct stmt * statement, struct stmt * else_stmt, struct stmt * next)
+{
+    struct stmt * s = malloc(sizeof(*s));
+    s->kind = STMT_IF;
+
+    s->stmt_ = malloc(sizeof(*s->stmt_));
+
+    struct if_stmt * i = malloc(sizeof(*i));
+    i->expression = expression;
+    i->statement = statement;
+
+    s->stmt_->if_stmt = i;
+    s->next = next;
+
+    if (else_stmt)
+    {
+        s->stmt_->if_stmt->else_stmt = else_stmt;
+    }
+    
+    
+
+    return s;
+}
+
+struct stmt * stmt_create_else_if(struct expr * expression, struct stmt * statement, struct stmt * else_stmt)
+{
+    struct stmt * s = malloc(sizeof(*s));
+    s->kind = STMT_ELSE_IF;
+
+    s->stmt_ = malloc(sizeof(*s->stmt_));
+
+    struct if_stmt * i = malloc(sizeof(*i));
+    i->expression = expression;
+    i->statement = statement;
+
+    s->stmt_->if_stmt = i;
+    
+    if (else_stmt)
+    {
+        s->stmt_->if_stmt->else_stmt = else_stmt;
+    }
+    
+    
+
+    return s;
+}
+
+struct stmt * stmt_create_else(struct stmt * statement)
+{
+    struct stmt * s = malloc(sizeof(*s));
+    s->kind = STMT_ELSE;
+
+    s->stmt_ = malloc(sizeof(*s->stmt_));
+
+    struct if_stmt * i = malloc(sizeof(*i));
+    i->statement = statement;
+
+    s->stmt_->if_stmt = i;
+
+    return s;
 }
 
 struct decl * decl_create_function(struct ident * name, struct function_param * params, struct type * return_type, struct stmt * body)
@@ -1032,6 +1112,22 @@ void stmt_resolve(struct stmt * s, struct decl_function * f)
     case STMT_RETURN:
         expr_resolve(s->stmt_->expression, f);
         break;
+    case STMT_IF:
+        scope_enter();
+        expr_resolve(s->stmt_->if_stmt->expression, f);
+        stmt_resolve(s->stmt_->if_stmt->statement, f);
+        scope_exit();
+        break;
+    case STMT_ELSE_IF:
+        expr_resolve(s->stmt_->if_stmt->expression, f);
+        stmt_resolve(s->stmt_->if_stmt->statement, f);
+        break;
+    case STMT_ELSE:
+        scope_enter();
+        expr_resolve(s->stmt_->if_stmt->expression, f);
+        stmt_resolve(s->stmt_->if_stmt->statement, f);
+        scope_exit();
+        break;
     default:
         break;
     }
@@ -1325,10 +1421,28 @@ void stmt_typecheck(struct stmt * s)
         expr_typecheck(s->stmt_->expression);
     case STMT_RETURN:
         expr_typecheck(s->stmt_->expression);
+    case STMT_IF:
+        // if (!(expr_typecheck(s->stmt_->if_stmt->expression)->kind != TYPE_PRIMITIVE && expr_typecheck(s->stmt_->if_stmt->expression)->type_->kind != PRIMITIVE_BOOL))
+        // {
+        //     printf("error: cannot perform an if statement with a non bool expression");
+        // }
+        stmt_typecheck(s->stmt_->if_stmt->else_stmt);
+        break;
+    case STMT_ELSE_IF:
+        // if (!(expr_typecheck(s->stmt_->if_stmt->expression)->kind != TYPE_PRIMITIVE && expr_typecheck(s->stmt_->if_stmt->expression)->type_->kind != PRIMITIVE_BOOL))
+        // {
+        //     printf("error: cannot perform an if statement with a non bool expression");
+        // }
+        stmt_typecheck(s->stmt_->if_stmt->else_stmt);
+        break;
+    case STMT_ELSE:
+        break;
     
     default:
         break;
     }
+
+    stmt_typecheck(s->next);
 }
 
 int registers[7];
@@ -1525,6 +1639,7 @@ void scratch_free(int r)
 {
     registers[r] = 0;
 }
+
 int label_create()
 {
     return label_counter++;
@@ -1721,8 +1836,6 @@ void expr_function_call_codegen(struct expr *e)
     if (!strcmp(name, "print"))
     {      
         expr_codegen(e->expr_->function_call->arguments->value);
-
-        expr_codegen(e->expr_->function_call->arguments->value);
         fprintf(file, "\tmov\trdi,\tnum_fmt\n"); // 4 is print
         fprintf(file, "\tmov\trsi,\t%s\n", scratch_name(e->expr_->function_call->arguments->value->reg, 8));
         fprintf(file, "\tmov\trax,\t0\n");
@@ -1775,7 +1888,6 @@ void expr_codegen(struct expr * e)
         e->reg = e->expr_->operation->right->reg;
         break;
     case EXPR_ASSIGN:
-        expr_codegen(scratch_name(e->expr_->assign->expression, 8));
         if (e->expr_->assign->expression->kind != EXPR_IDENTIFIER)
         {
             expr_codegen(e->expr_->assign->expression);
@@ -1810,6 +1922,95 @@ void expr_codegen(struct expr * e)
     }
 }
 
+void if_codegen(struct stmt * s, struct decl_function * f)
+{
+    
+    if (s->stmt_->if_stmt->else_stmt)
+    {
+        if (s->stmt_->if_stmt->else_stmt->kind == STMT_ELSE_IF)
+        {
+            int endLabel = label_create();
+            int elseIfLabel = label_create();
+            expr_codegen(s->stmt_->if_stmt->expression);
+            fprintf(file, "\tcmp\t%s,\t1\n", scratch_name(s->stmt_->if_stmt->expression->reg, s->stmt_->if_stmt->expression->size));
+            fprintf(file, "\tjne\telse_if_L%i\n", elseIfLabel);
+            scratch_free(s->stmt_->if_stmt->expression->reg);
+            stmt_codegen(s->stmt_->if_stmt->statement, f);
+            fprintf(file, "\tjmp\tend_L%i\n", endLabel);
+            fprintf(file, "else_if_L%i:\n", elseIfLabel);
+            if_else_codegen(s->stmt_->if_stmt->else_stmt, f, endLabel);
+            fprintf(file, "end_L%i:\n", endLabel);
+        }
+        else
+        {
+            int endLabel = label_create();
+            int elseLabel = label_create();
+            expr_codegen(s->stmt_->if_stmt->expression);
+            fprintf(file, "\tcmp\t%s,\t1\n", scratch_name(s->stmt_->if_stmt->expression->reg, 8));
+            fprintf(file, "\tjne\telse_L%i\n", elseLabel);
+            scratch_free(s->stmt_->if_stmt->expression->reg);
+            stmt_codegen(s->stmt_->if_stmt->statement, f);
+            fprintf(file, "\tjne\tend_L%i\n", endLabel);
+            fprintf(file, "else_L%i:\n", elseLabel);
+            stmt_codegen(s->stmt_->if_stmt->else_stmt->stmt_->if_stmt->statement, f);
+            fprintf(file, "end_L%i:\n", endLabel);
+        }
+    }
+    else
+    {
+        int endLabel = label_create();
+        expr_codegen(s->stmt_->if_stmt->expression);
+        fprintf(file, "\tcmp\t%s,\t1\n", scratch_name(s->stmt_->if_stmt->expression->reg, 8));
+        fprintf(file, "\tjne\tend_L%i\n", endLabel);
+        scratch_free(s->stmt_->if_stmt->expression->reg);
+
+        stmt_codegen(s->stmt_->if_stmt->statement, f);
+
+        fprintf(file, "end_L%i:\n", endLabel);
+    }
+    
+}
+
+void if_else_codegen(struct stmt * s, struct decl_function * f, int end)
+{
+    if (s->stmt_->if_stmt->else_stmt)
+    {
+        if (s->stmt_->if_stmt->else_stmt->kind == STMT_ELSE_IF)
+        {
+            int elseIfLabel = label_create();
+            expr_codegen(s->stmt_->if_stmt->expression);
+            fprintf(file, "\tcmp\t%s,\t1\n", scratch_name(s->stmt_->if_stmt->expression->reg, 8));
+            fprintf(file, "\tjne\telse_if_L%i\n", elseIfLabel);
+            scratch_free(s->stmt_->if_stmt->expression->reg);
+            stmt_codegen(s->stmt_->if_stmt->statement, f);
+            fprintf(file, "\tjmp\tend_L%i\n", end);
+            fprintf(file, "else_if_L%i:\n", elseIfLabel);
+            if_else_codegen(s->stmt_->if_stmt->else_stmt, f, end);
+        
+        }
+        else
+        {
+            int elseLabel = label_create();
+            expr_codegen(s->stmt_->if_stmt->expression);
+            fprintf(file, "\tcmp\t%s,\t1\n", scratch_name(s->stmt_->if_stmt->expression->reg, 8));
+            fprintf(file, "\tjne\telse_L%i\n", elseLabel);
+            scratch_free(s->stmt_->if_stmt->expression->reg);
+            stmt_codegen(s->stmt_->if_stmt->statement, f);
+            fprintf(file, "\tjne\tend_L%i\n", end);
+            fprintf(file, "else_L%i:\n", elseLabel);
+            stmt_codegen(s->stmt_->if_stmt->else_stmt->stmt_->if_stmt->statement, f);
+        }
+    }
+    else
+    {
+        expr_codegen(s->stmt_->if_stmt->expression);
+        fprintf(file, "\tcmp\t%s,\t1\n", scratch_name(s->stmt_->if_stmt->expression->reg, 8));
+        fprintf(file, "\tjne\tend_L%i\n", end);
+        stmt_codegen(s->stmt_->if_stmt->statement, f);
+    }
+    
+}
+
 void stmt_codegen(struct stmt * s, struct decl_function * f)
 {
     if (!s) return;
@@ -1827,6 +2028,9 @@ void stmt_codegen(struct stmt * s, struct decl_function * f)
         fprintf(file, "\tmov\trax,\t%s\n", scratch_name(s->stmt_->expression->reg, 8));
         // fprintf(file, "    JMP .%s_end\n", f->identifier->name);
         scratch_free(s->stmt_->expression->reg);
+        break;
+    case STMT_IF:
+        if_codegen(s, f);
         break;
     
     default:
@@ -1921,6 +2125,7 @@ void decl_codegen(struct decl * d)
         {
             expr_codegen(d->decl_->variable->value);
             fprintf(file, "\tMOVQ\t%s,\t%s\n", scratch_name(d->decl_->variable->value->reg, 8), symbol_codegen(d->decl_->variable->sym, 0));
+            scratch_free(d->decl_->variable->value->reg);
         }
         break;
     case DECL_VARIABLE_LOCAL:
@@ -1928,6 +2133,7 @@ void decl_codegen(struct decl * d)
         {   
             expr_codegen(d->decl_->variable->value);
             fprintf(file, "\tmov\t%s,\t%s\n", symbol_codegen(d->decl_->variable->sym, 0), scratch_name(d->decl_->variable->value->reg, d->decl_->variable->sym->size));
+            scratch_free(d->decl_->variable->value->reg);
         }
         
         break;

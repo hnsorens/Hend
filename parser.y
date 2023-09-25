@@ -23,7 +23,7 @@ struct decl * code;
     struct type_spec * type_spec_ptr;
 }
 
-%token POINTER IF FOR WHILE QUOTE TRUE_ FALSE_ CHARACTER BOOLEAN ERROR I1 I2 I4 I8 UI1 UI2 UI4 UI8 F4 F8 STRUCT MODULE RETURN EXTEND REQUIREMENT COMMA CONSTRUCTOR VOID OBJECT INCLUDE NUM IDENTIFIER PLUS MINUS TIMES DIVIDE ASSIGN SEMICOLON FUNCTION LPAREN RPAREN LCBRACKET RCBRACKET PUBLIC PRIVATE LBRACKET RBRACKET STRING_VALUE STRING
+%token ELSE POINTER IF FOR WHILE QUOTE TRUE_ FALSE_ CHARACTER BOOLEAN ERROR I1 I2 I4 I8 UI1 UI2 UI4 UI8 F4 F8 STRUCT MODULE RETURN EXTEND REQUIREMENT COMMA CONSTRUCTOR VOID OBJECT INCLUDE NUM IDENTIFIER PLUS MINUS TIMES DIVIDE ASSIGN SEMICOLON FUNCTION LPAREN RPAREN LCBRACKET RCBRACKET PUBLIC PRIVATE LBRACKET RBRACKET STRING_VALUE STRING
 
 %type <decl_ptr> program
 %type <decl_ptr> declaration
@@ -40,6 +40,8 @@ struct decl * code;
 %type <string_val> STRING_VALUE
 %type <array_sub_ptr> array_subscript
 %type <type_spec_ptr> type_specifier
+%type <stmt_ptr> else_if_statement
+%type <stmt_ptr> if_statement
 
 %%
 
@@ -121,6 +123,17 @@ statement:
     | RETURN exp SEMICOLON statement { $$ = stmt_create_return($2); }
     | exp SEMICOLON statement { $$ = stmt_create_expr($1, $3); }
     | decl statement { $$ = stmt_create_decl($1, $2); }
+    | if_statement { $$ = $1; }
+    ;
+
+if_statement:
+    IF LPAREN exp RPAREN LCBRACKET statement RCBRACKET else_if_statement statement { $$ = stmt_create_if($3, $6, $8, $9); }
+    ;
+
+else_if_statement:
+    { $$ = 0; }
+    | ELSE IF LPAREN exp RPAREN LCBRACKET statement RCBRACKET else_if_statement { $$ = stmt_create_else_if($4, $7, $9); }
+    | ELSE LCBRACKET statement RCBRACKET { $$ = stmt_create_else($3); }
     ;
 
 ident:

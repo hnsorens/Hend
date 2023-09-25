@@ -33,6 +33,7 @@
 "char"      { return CHARACTER; }
 "for"       { return FOR; }
 "if"        { return IF; }
+"else"      { return ELSE; }
 "while"     { return WHILE; }
 "!"         { return ERROR; }
 "false"     { return FALSE_; }
