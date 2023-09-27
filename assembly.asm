@@ -15,70 +15,48 @@ function_printNum:
 main:
 	push	rbp
 	mov	rbp,	rsp
-	sub	rsp,	48
-	mov	rbx,	10
+	sub	rsp,	16
+	mov	rbx,	0
+	mov	dword [rbp - 4],	ebx
+	mov	rbx,	0
 	mov	dword [rbp - 8],	ebx
+	mov	rbx,	0
+	mov	dword [rbp - 12],	ebx
+for_start_0:
+	mov	ebx,	dword [rbp - 12]
+	mov	r10,	10
+	mov	r11,	0
+	cmp	rbx,	r10
+	jnl	end_2
+	mov	r11,	1
+end_2:
+	cmp	r11d,	1
+	jne	for_end_1
 	push	qword	0
-	mov	ebx,	dword [rbp - 8]
+	mov	ebx,	dword [rbp - 12]
 	push	rbx
 	call	function_printNum
+	add	rsp,	16
 	mov	rbx,	rax
-	mov	r10,	0
-	cmp	r10,	1
-	jne	else_if_L1
-	mov	r10,	1123
-	mov	dword [rbp - 44],	r10d
-	push	qword	0
-	mov	r10d,	dword [rbp - 8]
-	push	r10
-	mov	r10,	10
-	push	r10
-	call	function_add
-	mov	r10,	rax
-	push	r10
-	call	function_printNum
-	mov	r10,	rax
-	jmp	end_L0
-else_if_L1:
-	mov	r11,	0
-	cmp	r11,	1
-	jne	else_if_L2
-	push	qword	0
-	mov	r11,	134
-	push	r11
-	call	function_printNum
-	mov	r11,	rax
-	jmp	end_L0
-else_if_L2:
-	mov	r12,	0
-	cmp	r12,	1
-	jne	else_L3
-	push	qword	0
+	mov	r10d,	dword [rbp - 12]
 	mov	r12,	1
-	push	r12
-	call	function_printNum
-	mov	r12,	rax
-	jne	end_L0
-else_L3:
-	push	qword	0
-	mov	r13,	134123
-	push	r13
-	call	function_printNum
-	mov	r13,	rax
-end_L0:
-	mov	r14,	1
-	mov	rax,	r14
-	add	rsp,	48
+	add	r12,	r10
+	mov	dword [rbp - 12],	r12d
+	jmp	for_start_0
+for_end_1:
+	mov	r10,	1
+	mov	rax,	r10
+	add	rsp,	16
 	pop	rbp
 	xor	rbx,	rbx
 	int	0x80
 function_add:
 	push	rbp
 	mov	rbp,	rsp
-	mov	r14d,	dword [rbp + 16]
-	mov	r15d,	dword [rbp + 24]
-	add	r15,	r14
-	mov	rax,	r15
+	mov	r10d,	dword [rbp + 16]
+	mov	r12d,	dword [rbp + 24]
+	add	r12,	r10
+	mov	rax,	r12
 	pop	rbp
 	ret
 

@@ -23,7 +23,7 @@ struct decl * code;
     struct type_spec * type_spec_ptr;
 }
 
-%token ELSE POINTER IF FOR WHILE QUOTE TRUE_ FALSE_ CHARACTER BOOLEAN ERROR I1 I2 I4 I8 UI1 UI2 UI4 UI8 F4 F8 STRUCT MODULE RETURN EXTEND REQUIREMENT COMMA CONSTRUCTOR VOID OBJECT INCLUDE NUM IDENTIFIER PLUS MINUS TIMES DIVIDE ASSIGN SEMICOLON FUNCTION LPAREN RPAREN LCBRACKET RCBRACKET PUBLIC PRIVATE LBRACKET RBRACKET STRING_VALUE STRING
+%token EQUAL GREATER LESS GREATER_EQUAL LESS_EQUAL NOT_EQUAL ELSE POINTER IF FOR WHILE QUOTE TRUE_ FALSE_ CHARACTER BOOLEAN ERROR I1 I2 I4 I8 UI1 UI2 UI4 UI8 F4 F8 STRUCT MODULE RETURN EXTEND REQUIREMENT COMMA CONSTRUCTOR VOID OBJECT INCLUDE NUM IDENTIFIER PLUS MINUS TIMES DIVIDE ASSIGN SEMICOLON FUNCTION LPAREN RPAREN LCBRACKET RCBRACKET PUBLIC PRIVATE LBRACKET RBRACKET STRING_VALUE STRING
 
 %type <decl_ptr> program
 %type <decl_ptr> declaration
@@ -71,8 +71,9 @@ param:
 
 exp:
     | LPAREN exp RPAREN {$$ = $2;}
+        | IDENTIFIER LBRACKET NUM RBRACKET { $$ = expr_create_name($1, $3); }
     | IDENTIFIER { $$ = expr_create_name($1, 0); }
-    | IDENTIFIER LBRACKET NUM RBRACKET { $$ = expr_create_name($1, $3); }
+
     | NUM { $$ = expr_create_integer($1); }
     | STRING_VALUE { $$ = 0; }
     | ident ASSIGN exp { $$ = expr_create_assign($1, $3); }
@@ -83,6 +84,12 @@ exp:
     | FALSE_ { $$ = expr_create_bool(0); }
     | TRUE_ { $$ = expr_create_bool(1); }
     | ident LPAREN arguments RPAREN { $$ = expr_create_call($1, $3); }
+    | exp EQUAL exp { $$ = expr_create_equal($1, $3); }
+    | exp NOT_EQUAL exp { $$ = expr_create_not_equal($1, $3); }
+    | exp GREATER exp { $$ = expr_create_greater($1, $3); }
+    | exp LESS exp { $$ = expr_create_less($1, $3); }
+    | exp GREATER_EQUAL exp { $$ = expr_create_greater_equal($1, $3); }
+    | exp LESS_EQUAL exp { $$ = expr_create_less_equal($1, $3); }
     ;
 
 decl:
@@ -124,6 +131,8 @@ statement:
     | exp SEMICOLON statement { $$ = stmt_create_expr($1, $3); }
     | decl statement { $$ = stmt_create_decl($1, $2); }
     | if_statement { $$ = $1; }
+    | WHILE LPAREN exp RPAREN LCBRACKET statement RCBRACKET statement { $$ = stmt_create_while($3, $6, $8); }
+    | FOR LPAREN decl exp SEMICOLON exp RPAREN LCBRACKET statement RCBRACKET statement { $$ = stmt_create_for($3, $4, $6, $9, $11); } 
     ;
 
 if_statement:
@@ -176,7 +185,7 @@ int main() {
 
     if (build || error)
     {
-        printf("********************Build Failed!***********************\n");
+        printf("********************Build Succesfull!***********************\n");
     }
     else
     {

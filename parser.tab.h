@@ -54,56 +54,62 @@ extern int yydebug;
     YYEOF = 0,                     /* "end of file"  */
     YYerror = 256,                 /* error  */
     YYUNDEF = 257,                 /* "invalid token"  */
-    ELSE = 258,                    /* ELSE  */
-    POINTER = 259,                 /* POINTER  */
-    IF = 260,                      /* IF  */
-    FOR = 261,                     /* FOR  */
-    WHILE = 262,                   /* WHILE  */
-    QUOTE = 263,                   /* QUOTE  */
-    TRUE_ = 264,                   /* TRUE_  */
-    FALSE_ = 265,                  /* FALSE_  */
-    CHARACTER = 266,               /* CHARACTER  */
-    BOOLEAN = 267,                 /* BOOLEAN  */
-    ERROR = 268,                   /* ERROR  */
-    I1 = 269,                      /* I1  */
-    I2 = 270,                      /* I2  */
-    I4 = 271,                      /* I4  */
-    I8 = 272,                      /* I8  */
-    UI1 = 273,                     /* UI1  */
-    UI2 = 274,                     /* UI2  */
-    UI4 = 275,                     /* UI4  */
-    UI8 = 276,                     /* UI8  */
-    F4 = 277,                      /* F4  */
-    F8 = 278,                      /* F8  */
-    STRUCT = 279,                  /* STRUCT  */
-    MODULE = 280,                  /* MODULE  */
-    RETURN = 281,                  /* RETURN  */
-    EXTEND = 282,                  /* EXTEND  */
-    REQUIREMENT = 283,             /* REQUIREMENT  */
-    COMMA = 284,                   /* COMMA  */
-    CONSTRUCTOR = 285,             /* CONSTRUCTOR  */
-    VOID = 286,                    /* VOID  */
-    OBJECT = 287,                  /* OBJECT  */
-    INCLUDE = 288,                 /* INCLUDE  */
-    NUM = 289,                     /* NUM  */
-    IDENTIFIER = 290,              /* IDENTIFIER  */
-    PLUS = 291,                    /* PLUS  */
-    MINUS = 292,                   /* MINUS  */
-    TIMES = 293,                   /* TIMES  */
-    DIVIDE = 294,                  /* DIVIDE  */
-    ASSIGN = 295,                  /* ASSIGN  */
-    SEMICOLON = 296,               /* SEMICOLON  */
-    FUNCTION = 297,                /* FUNCTION  */
-    LPAREN = 298,                  /* LPAREN  */
-    RPAREN = 299,                  /* RPAREN  */
-    LCBRACKET = 300,               /* LCBRACKET  */
-    RCBRACKET = 301,               /* RCBRACKET  */
-    PUBLIC = 302,                  /* PUBLIC  */
-    PRIVATE = 303,                 /* PRIVATE  */
-    LBRACKET = 304,                /* LBRACKET  */
-    RBRACKET = 305,                /* RBRACKET  */
-    STRING_VALUE = 306,            /* STRING_VALUE  */
-    STRING = 307                   /* STRING  */
+    EQUAL = 258,                   /* EQUAL  */
+    GREATER = 259,                 /* GREATER  */
+    LESS = 260,                    /* LESS  */
+    GREATER_EQUAL = 261,           /* GREATER_EQUAL  */
+    LESS_EQUAL = 262,              /* LESS_EQUAL  */
+    NOT_EQUAL = 263,               /* NOT_EQUAL  */
+    ELSE = 264,                    /* ELSE  */
+    POINTER = 265,                 /* POINTER  */
+    IF = 266,                      /* IF  */
+    FOR = 267,                     /* FOR  */
+    WHILE = 268,                   /* WHILE  */
+    QUOTE = 269,                   /* QUOTE  */
+    TRUE_ = 270,                   /* TRUE_  */
+    FALSE_ = 271,                  /* FALSE_  */
+    CHARACTER = 272,               /* CHARACTER  */
+    BOOLEAN = 273,                 /* BOOLEAN  */
+    ERROR = 274,                   /* ERROR  */
+    I1 = 275,                      /* I1  */
+    I2 = 276,                      /* I2  */
+    I4 = 277,                      /* I4  */
+    I8 = 278,                      /* I8  */
+    UI1 = 279,                     /* UI1  */
+    UI2 = 280,                     /* UI2  */
+    UI4 = 281,                     /* UI4  */
+    UI8 = 282,                     /* UI8  */
+    F4 = 283,                      /* F4  */
+    F8 = 284,                      /* F8  */
+    STRUCT = 285,                  /* STRUCT  */
+    MODULE = 286,                  /* MODULE  */
+    RETURN = 287,                  /* RETURN  */
+    EXTEND = 288,                  /* EXTEND  */
+    REQUIREMENT = 289,             /* REQUIREMENT  */
+    COMMA = 290,                   /* COMMA  */
+    CONSTRUCTOR = 291,             /* CONSTRUCTOR  */
+    VOID = 292,                    /* VOID  */
+    OBJECT = 293,                  /* OBJECT  */
+    INCLUDE = 294,                 /* INCLUDE  */
+    NUM = 295,                     /* NUM  */
+    IDENTIFIER = 296,              /* IDENTIFIER  */
+    PLUS = 297,                    /* PLUS  */
+    MINUS = 298,                   /* MINUS  */
+    TIMES = 299,                   /* TIMES  */
+    DIVIDE = 300,                  /* DIVIDE  */
+    ASSIGN = 301,                  /* ASSIGN  */
+    SEMICOLON = 302,               /* SEMICOLON  */
+    FUNCTION = 303,                /* FUNCTION  */
+    LPAREN = 304,                  /* LPAREN  */
+    RPAREN = 305,                  /* RPAREN  */
+    LCBRACKET = 306,               /* LCBRACKET  */
+    RCBRACKET = 307,               /* RCBRACKET  */
+    PUBLIC = 308,                  /* PUBLIC  */
+    PRIVATE = 309,                 /* PRIVATE  */
+    LBRACKET = 310,                /* LBRACKET  */
+    RBRACKET = 311,                /* RBRACKET  */
+    STRING_VALUE = 312,            /* STRING_VALUE  */
+    STRING = 313                   /* STRING  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -127,7 +133,7 @@ union YYSTYPE
     struct array_sub * array_sub_ptr;
     struct type_spec * type_spec_ptr;
 
-#line 131 "parser.tab.h"
+#line 137 "parser.tab.h"
 
 };
 typedef union YYSTYPE YYSTYPE;

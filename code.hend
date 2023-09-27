@@ -2,29 +2,14 @@
 fn main() int4
 {
 
-    int4[10] k;
-    k[8]: 10;
 
-    printNum(k[8]);
+    int4 a: 0;
+    int4 b: 0;
 
-    if (false)
+    for (int4 k: 0; k < 10; k: k + 1)
     {
-        int4 t: 1123;
-        printNum(add(k[8], 10));
+        printNum(k);
     }
-    else if (false)
-    {
-        printNum(134);
-    }
-    else if (false)
-    {
-        printNum(1);
-    }
-    else
-    {
-        printNum(134123);
-    }
-
 
     ret 1;
 

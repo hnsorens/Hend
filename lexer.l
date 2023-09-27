@@ -35,11 +35,17 @@
 "if"        { return IF; }
 "else"      { return ELSE; }
 "while"     { return WHILE; }
-"!"         { return ERROR; }
 "false"     { return FALSE_; }
 "true"      { return TRUE_; }
 [0-9]+      { yylval.int_val = atoi(yytext); return NUM; }
 [a-zA-Z]+[0-9a-zA-Z]*   { yylval.string_val = strdup(yytext); return IDENTIFIER; }
+"="         { return EQUAL; }
+">"         { return GREATER; }
+">="        { return GREATER_EQUAL; }
+"<"         { return LESS; }
+"<="        { return LESS_EQUAL; }
+"!="        { return NOT_EQUAL; }
+"!"         { return ERROR; }
 "+"         { return PLUS; }
 "-"         { return MINUS; }
 "*"         { return TIMES; }

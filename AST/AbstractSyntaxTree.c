@@ -116,7 +116,13 @@ typedef enum
     EXPR_IDENTIFIER,
     EXPR_BOOL,
     EXPR_INTEGER,
-    EXPR_ASSIGN
+    EXPR_ASSIGN,
+    EXPR_EQUAL,
+    EXPR_NOT_EQUAL,
+    EXPR_GREATER,
+    EXPR_LESS,
+    EXPR_GREATER_EQUAL,
+    EXPR_LESS_EQUAL
 } expr_t;
 
 struct expr
@@ -130,6 +136,7 @@ struct expr
         struct expr_function_call * function_call;
         struct ident * identifier;
         struct expr_assign * assign;
+        struct expr_bool_expression;
         int * integer_value; 
         // more
     };
@@ -259,7 +266,8 @@ typedef enum
     STMT_IF,
     STMT_ELSE_IF,
     STMT_ELSE,
-    STMT_WHILE
+    STMT_WHILE,
+    STMT_FOR
 } stmt_t;
 
 struct if_stmt
@@ -272,7 +280,16 @@ struct if_stmt
 
 struct while_stmt
 {
+    struct expr * expression;
+    struct stmt * body;
+};
 
+struct for_stmt
+{
+    struct decl * declaration;
+    struct expr * expression1;
+    struct expr * expression2;
+    struct stmt * body;
 };
 
 struct stmt
@@ -284,6 +301,8 @@ struct stmt
         struct expr * expression;
         struct decl * declaration;
         struct if_stmt * if_stmt;
+        struct while_stmt * while_stmt;
+        struct for_stmt * for_stmt;
     };
 
     union stmt_type * stmt_;
@@ -315,6 +334,26 @@ struct decl * decl_create(decl_t kind)
     return d;
 }
 
+struct stmt * stmt_create_for(struct decl * d, struct expr * e1, struct expr * e2, struct stmt * body, struct stmt * next)
+{
+    struct stmt * s = malloc(sizeof(*s));
+    s->kind = STMT_FOR;
+    
+    s->stmt_ = malloc(sizeof(*s->stmt_));
+    
+    struct for_stmt * f = malloc(sizeof(*f));
+    f->declaration = d;
+    f->expression1 = e1;
+    f->expression2 = e2;
+    f->body = body;
+
+    s->stmt_->for_stmt = f;
+
+    s->next = next;
+
+    return s;
+}
+
 struct stmt * stmt_create_if(struct expr * expression, struct stmt * statement, struct stmt * else_stmt, struct stmt * next)
 {
     struct stmt * s = malloc(sizeof(*s));
@@ -335,6 +374,24 @@ struct stmt * stmt_create_if(struct expr * expression, struct stmt * statement, 
     }
     
     
+
+    return s;
+}
+
+struct stmt * stmt_create_while(struct expr * e, struct stmt * body, struct stmt * next)
+{
+    struct stmt * s = malloc(sizeof(*s));
+    s->kind = STMT_WHILE;
+
+    s->stmt_ = malloc(sizeof(*s->stmt_));
+    
+    struct while_stmt * w = malloc(sizeof(*w));
+    w->expression = e;
+    w->body = body;
+
+    s->stmt_->while_stmt = w;
+
+    s->next = next;
 
     return s;
 }
@@ -473,6 +530,90 @@ struct expr * expr_create_integer(int i)
 
     e->expr_->integer_value = i;
 
+    return e;
+}
+
+struct expr * expr_create_equal(struct expr * L, struct expr * R)
+{
+    struct expr * e = malloc(sizeof(*e));
+    e->kind = EXPR_EQUAL;
+    e->expr_ = malloc(sizeof(*e->expr_));
+
+    struct expr_operation * o = malloc(sizeof(*o));
+    o->left = L;
+    o->right = R;
+
+    e->expr_->operation = o;
+    return e;
+}
+
+struct expr * expr_create_not_equal(struct expr * L, struct expr * R)
+{
+    struct expr * e = malloc(sizeof(*e));
+    e->kind = EXPR_NOT_EQUAL;
+    e->expr_ = malloc(sizeof(*e->expr_));
+
+    struct expr_operation * o = malloc(sizeof(*o));
+    o->left = L;
+    o->right = R;
+
+    e->expr_->operation = o;
+    return e;
+}
+
+struct expr * expr_create_greater(struct expr * L, struct expr * R)
+{
+    struct expr * e = malloc(sizeof(*e));
+    e->kind = EXPR_GREATER;
+    e->expr_ = malloc(sizeof(*e->expr_));
+
+    struct expr_operation * o = malloc(sizeof(*o));
+    o->left = L;
+    o->right = R;
+
+    e->expr_->operation = o;
+    return e;
+}
+
+struct expr * expr_create_less(struct expr * L, struct expr * R)
+{
+    struct expr * e = malloc(sizeof(*e));
+    e->kind = EXPR_LESS;
+    e->expr_ = malloc(sizeof(*e->expr_));
+
+    struct expr_operation * o = malloc(sizeof(*o));
+    o->left = L;
+    o->right = R;
+
+    e->expr_->operation = o;
+    return e;
+}
+
+struct expr * expr_create_greater_equal(struct expr * L, struct expr * R)
+{
+    struct expr * e = malloc(sizeof(*e));
+    e->kind = EXPR_GREATER_EQUAL;
+    e->expr_ = malloc(sizeof(*e->expr_));
+
+    struct expr_operation * o = malloc(sizeof(*o));
+    o->left = L;
+    o->right = R;
+
+    e->expr_->operation = o;
+    return e;
+}
+
+struct expr * expr_create_less_equal(struct expr * L, struct expr * R)
+{
+    struct expr * e = malloc(sizeof(*e));
+    e->kind = EXPR_LESS_EQUAL;
+    e->expr_ = malloc(sizeof(*e->expr_));
+
+    struct expr_operation * o = malloc(sizeof(*o));
+    o->left = L;
+    o->right = R;
+
+    e->expr_->operation = o;
     return e;
 }
 
@@ -965,7 +1106,32 @@ void expr_resolve(struct expr * e, struct decl_function * f)
         expr_resolve(e->expr_->operation->left, f);
         expr_resolve(e->expr_->operation->right, f);
         break;
+    case EXPR_EQUAL:
+        expr_resolve(e->expr_->operation->left, f);
+        expr_resolve(e->expr_->operation->right, f);
+        break;
+    case EXPR_NOT_EQUAL:
+        expr_resolve(e->expr_->operation->left, f);
+        expr_resolve(e->expr_->operation->right, f);
+        break;
+    case EXPR_GREATER:
+        expr_resolve(e->expr_->operation->left, f);
+        expr_resolve(e->expr_->operation->right, f);
+        break;
+    case EXPR_LESS:
+        expr_resolve(e->expr_->operation->left, f);
+        expr_resolve(e->expr_->operation->right, f);
+        break;
+    case EXPR_GREATER_EQUAL:
+        expr_resolve(e->expr_->operation->left, f);
+        expr_resolve(e->expr_->operation->right, f);
+        break;
+    case EXPR_LESS_EQUAL:
+        expr_resolve(e->expr_->operation->left, f);
+        expr_resolve(e->expr_->operation->right, f);
+        break;
     case EXPR_IDENTIFIER:
+        
         ident_resolve(e->expr_->identifier);
         break;
     case EXPR_INTEGER:
@@ -1116,16 +1282,34 @@ void stmt_resolve(struct stmt * s, struct decl_function * f)
         scope_enter();
         expr_resolve(s->stmt_->if_stmt->expression, f);
         stmt_resolve(s->stmt_->if_stmt->statement, f);
+        stmt_resolve(s->stmt_->if_stmt, f);
         scope_exit();
         break;
     case STMT_ELSE_IF:
+        scope_enter();
         expr_resolve(s->stmt_->if_stmt->expression, f);
         stmt_resolve(s->stmt_->if_stmt->statement, f);
+        stmt_resolve(s->stmt_->if_stmt, f);
+        scope_exit();
         break;
     case STMT_ELSE:
         scope_enter();
         expr_resolve(s->stmt_->if_stmt->expression, f);
         stmt_resolve(s->stmt_->if_stmt->statement, f);
+        scope_exit();
+        break;
+    case STMT_WHILE:
+        scope_enter();
+        expr_resolve(s->stmt_->while_stmt->expression, f);
+        stmt_resolve(s->stmt_->while_stmt->body, f);
+        scope_exit();
+        break;
+    case STMT_FOR:
+        scope_enter();
+        decl_resolve(s->stmt_->for_stmt->declaration, f);
+        expr_resolve(s->stmt_->for_stmt->expression1, f);
+        expr_resolve(s->stmt_->for_stmt->expression2, f);
+        stmt_resolve(s->stmt_->for_stmt->body, f);
         scope_exit();
         break;
     default:
@@ -1296,6 +1480,36 @@ struct type * expr_typecheck(struct expr * e)
             throw_error();
         }
         return type_create_primitive(PRIMITIVE_INTEGER, 0);
+    case EXPR_EQUAL:
+        struct type * e_lt = expr_typecheck(e->expr_->operation->left);
+        struct type * e_rt = expr_typecheck(e->expr_->operation->right);
+        // DO SOMETHING HERE
+        return type_create_primitive(PRIMITIVE_BOOL, 0);
+    case EXPR_NOT_EQUAL:
+        struct type * ne_lt = expr_typecheck(e->expr_->operation->left);
+        struct type * ne_rt = expr_typecheck(e->expr_->operation->right);
+        // DO SOMETHING HERE
+        return type_create_primitive(PRIMITIVE_BOOL, 0);
+    case EXPR_GREATER:
+        struct type * g_lt = expr_typecheck(e->expr_->operation->left);
+        struct type * g_rt = expr_typecheck(e->expr_->operation->right);
+        // DO SOMETHING HERE
+        return type_create_primitive(PRIMITIVE_BOOL, 0);
+    case EXPR_LESS:
+        struct type * l_lt = expr_typecheck(e->expr_->operation->left);
+        struct type * l_rt = expr_typecheck(e->expr_->operation->right);
+        // DO SOMETHING HERE
+        return type_create_primitive(PRIMITIVE_BOOL, 0);
+    case EXPR_GREATER_EQUAL:
+        struct type * ge_lt = expr_typecheck(e->expr_->operation->left);
+        struct type * ge_rt = expr_typecheck(e->expr_->operation->right);
+        // DO SOMETHING HERE
+        return type_create_primitive(PRIMITIVE_BOOL, 0);
+    case EXPR_LESS_EQUAL:
+        struct type * le_lt = expr_typecheck(e->expr_->operation->left);
+        struct type * le_rt = expr_typecheck(e->expr_->operation->right);
+        // DO SOMETHING HERE
+        return type_create_primitive(PRIMITIVE_BOOL, 0);
     case EXPR_ASSIGN:
         if (e->expr_->assign->identifier->sym->type != expr_typecheck(e->expr_->assign->expression))
         {
@@ -1426,6 +1640,7 @@ void stmt_typecheck(struct stmt * s)
         // {
         //     printf("error: cannot perform an if statement with a non bool expression");
         // }
+        stmt_typecheck(s->stmt_->if_stmt->statement);
         stmt_typecheck(s->stmt_->if_stmt->else_stmt);
         break;
     case STMT_ELSE_IF:
@@ -1433,9 +1648,22 @@ void stmt_typecheck(struct stmt * s)
         // {
         //     printf("error: cannot perform an if statement with a non bool expression");
         // }
+        stmt_typecheck(s->stmt_->if_stmt->statement);
         stmt_typecheck(s->stmt_->if_stmt->else_stmt);
         break;
     case STMT_ELSE:
+        stmt_typecheck(s->stmt_->if_stmt->statement);
+        break;
+    case STMT_WHILE:
+        // PUT SOMETHING HERER
+        stmt_typecheck(s->stmt_->while_stmt->body);
+        break;
+    case STMT_FOR:
+        // DO SOMETHING HERE
+        decl_typecheck(s->stmt_->for_stmt->declaration);
+        expr_typecheck(s->stmt_->for_stmt->expression1);
+        expr_typecheck(s->stmt_->for_stmt->expression2);
+        stmt_typecheck(s->stmt_->for_stmt->body);
         break;
     
     default:
@@ -1661,7 +1889,6 @@ const char * symbol_codegen(struct symbol * s, int offset)
 
     if (code)
     {
-        
         if (!s->isParam)
         {
             if (s->type == SYMBOL_GLOBAL)
@@ -1724,6 +1951,7 @@ const char * symbol_codegen(struct symbol * s, int offset)
         }
         else
         {
+            
             if (s->position != 0)
             {
                 const char * type;
@@ -1849,6 +2077,7 @@ void expr_function_call_codegen(struct expr *e)
         expr_function_call_arg_codegen(e->expr_->function_call->arguments);
 
         fprintf(file, "\tcall\t%s%s\n", "function_", e->expr_->function_call->identifier->name);
+        fprintf(file, "\tadd\trsp,\t%i\n", (get_num_args(e->expr_->function_call->arguments) * 8)%16 > 0 ? get_num_args(e->expr_->function_call->arguments) * 8 + 8 : get_num_args(e->expr_->function_call->arguments) * 8);
     }
 }
 
@@ -1868,9 +2097,9 @@ void expr_codegen(struct expr * e)
     case EXPR_SUB:
         expr_codegen(e->expr_->operation->left);
         expr_codegen(e->expr_->operation->right);
-        fprintf(file, "\tsub\t%s,\t%s\n", scratch_name(e->expr_->operation->right->reg, 8), scratch_name(e->expr_->operation->left->reg, 8));
-        scratch_free(e->expr_->operation->left->reg);
-        e->reg = e->expr_->operation->right->reg;
+        fprintf(file, "\tsub\t%s,\t%s\n", scratch_name(e->expr_->operation->left->reg, 8), scratch_name(e->expr_->operation->right->reg, 8));
+        scratch_free(e->expr_->operation->right->reg);
+        e->reg = e->expr_->operation->left->reg;
         break;
     case EXPR_MUL:
         expr_codegen(e->expr_->operation->left);
@@ -1887,6 +2116,90 @@ void expr_codegen(struct expr * e)
         scratch_free(e->expr_->operation->left->reg);
         e->reg = e->expr_->operation->right->reg;
         break;
+    case EXPR_EQUAL:
+        int equalLabel = label_create();
+        expr_codegen(e->expr_->operation->left);
+        expr_codegen(e->expr_->operation->right);
+        int equalReg = scratch_alloc();
+        fprintf(file, "\tmov\t%s,\t0\n", scratch_name(equalReg, 8));
+        fprintf(file, "\tcmp\t%s,\t%s\n", scratch_name(e->expr_->operation->left->reg, 8), scratch_name(e->expr_->operation->right->reg, 8));
+        fprintf(file, "\tjne\tend_%i\n", equalLabel);
+        fprintf(file, "\tmov\t%s,\t1\n", scratch_name(equalReg, 8));
+        fprintf(file, "end_%i:\n", equalLabel);
+        scratch_free(e->expr_->operation->right->reg);
+        scratch_free(e->expr_->operation->left->reg);
+        e->reg = equalReg;
+        break;
+    case EXPR_NOT_EQUAL: // THESE CAN BE OPTIMIZED A LOT
+        int notEqualLabel = label_create();
+        expr_codegen(e->expr_->operation->left);
+        expr_codegen(e->expr_->operation->right);
+        int notEqualReg = scratch_alloc();
+        fprintf(file, "\tmov\t%s,\t0\n", scratch_name(notEqualReg, 8));
+        fprintf(file, "\tcmp\t%s,\t%s\n", scratch_name(e->expr_->operation->left->reg, 8), scratch_name(e->expr_->operation->right->reg, 8));
+        fprintf(file, "\tje\tend_%i\n", notEqualLabel);
+        fprintf(file, "\tmov\t%s,\t1\n", scratch_name(notEqualReg, 8));
+        fprintf(file, "end_%i:\n", notEqualLabel);
+        scratch_free(e->expr_->operation->right->reg);
+        scratch_free(e->expr_->operation->left->reg);
+        e->reg = notEqualReg;
+        break;
+    case EXPR_GREATER: // THESE CAN BE OPTIMIZED A LOT
+        int greaterLabel = label_create();
+        expr_codegen(e->expr_->operation->left);
+        expr_codegen(e->expr_->operation->right);
+        int greatReg = scratch_alloc();
+        fprintf(file, "\tmov\t%s,\t0\n", scratch_name(greatReg, 8));
+        fprintf(file, "\tcmp\t%s,\t%s\n", scratch_name(e->expr_->operation->left->reg, 8), scratch_name(e->expr_->operation->right->reg, 8));
+        fprintf(file, "\tjng\tend_%i\n", greaterLabel);
+        fprintf(file, "\tmov\t%s,\t1\n", scratch_name(greatReg, 8));
+        fprintf(file, "end_%i:\n", greaterLabel);
+        scratch_free(e->expr_->operation->right->reg);
+        scratch_free(e->expr_->operation->left->reg);
+        e->reg = greatReg;
+        break;
+    case EXPR_LESS: // THESE CAN BE OPTIMIZED A LOT
+        int lessLabel = label_create();
+        expr_codegen(e->expr_->operation->left);
+        expr_codegen(e->expr_->operation->right);
+        int lessReg = scratch_alloc();
+        fprintf(file, "\tmov\t%s,\t0\n", scratch_name(lessReg, 8));
+        fprintf(file, "\tcmp\t%s,\t%s\n", scratch_name(e->expr_->operation->left->reg, 8), scratch_name(e->expr_->operation->right->reg, 8));
+        fprintf(file, "\tjnl\tend_%i\n", lessLabel);
+        fprintf(file, "\tmov\t%s,\t1\n", scratch_name(lessReg, 8));
+        fprintf(file, "end_%i:\n", lessLabel);
+        scratch_free(e->expr_->operation->right->reg);
+        scratch_free(e->expr_->operation->left->reg);
+        e->reg = lessReg;
+        break;
+    case EXPR_GREATER_EQUAL: // THESE CAN BE OPTIMIZED A LOT
+        int notGreaterLabel = label_create();
+        expr_codegen(e->expr_->operation->left);
+        expr_codegen(e->expr_->operation->right);
+        int notGreaterReg = scratch_alloc();
+        fprintf(file, "\tmov\t%s,\t0\n", scratch_name(notGreaterReg, 8));
+        fprintf(file, "\tcmp\t%s,\t%s\n", scratch_name(e->expr_->operation->left->reg, 8), scratch_name(e->expr_->operation->right->reg, 8));
+        fprintf(file, "\tjl\tend_%i\n", notGreaterLabel);
+        fprintf(file, "\tmov\t%s,\t1\n", scratch_name(notGreaterReg, 8));
+        fprintf(file, "end_%i:\n", notGreaterLabel);
+        scratch_free(e->expr_->operation->right->reg);
+        scratch_free(e->expr_->operation->left->reg);
+        e->reg = notGreaterReg;
+        break;
+    case EXPR_LESS_EQUAL: // THESE CAN BE OPTIMIZED A LOT
+        int notLessLabel = label_create();
+        expr_codegen(e->expr_->operation->left);
+        expr_codegen(e->expr_->operation->right);
+        int notLessReg = scratch_alloc();
+        fprintf(file, "\tmov\t%s,\t0\n", scratch_name(notLessReg, 8));
+        fprintf(file, "\tcmp\t%s,\t%s\n", scratch_name(e->expr_->operation->left->reg, 8), scratch_name(e->expr_->operation->right->reg, 8));
+        fprintf(file, "\tjg\tend_%i\n", notLessLabel);
+        fprintf(file, "\tmov\t%s,\t1\n", scratch_name(notLessReg, 8));
+        fprintf(file, "end_%i:\n", notLessLabel);
+        scratch_free(e->expr_->operation->right->reg);
+        scratch_free(e->expr_->operation->left->reg);
+        e->reg = notLessReg;
+        break;
     case EXPR_ASSIGN:
         if (e->expr_->assign->expression->kind != EXPR_IDENTIFIER)
         {
@@ -1901,11 +2214,14 @@ void expr_codegen(struct expr * e)
         break;
     case EXPR_FUNCTION_CALL:
         expr_function_call_codegen(e);
+        
         e->reg = scratch_alloc();
         fprintf(file, "\tmov\t%s,\trax\n", scratch_name(e->reg, 8));
         break;
     case EXPR_IDENTIFIER:
         e->reg = scratch_alloc();
+        // fprintf(file, "%\n", e->expr_->identifier->offset);
+        
         fprintf(file, "\tmov\t%s,\t%s\n", scratch_name(e->reg, e->expr_->identifier->sym->size), symbol_codegen(e->expr_->identifier->sym, e->expr_->identifier->offset));
         break;
     case EXPR_INTEGER:
@@ -1932,7 +2248,7 @@ void if_codegen(struct stmt * s, struct decl_function * f)
             int endLabel = label_create();
             int elseIfLabel = label_create();
             expr_codegen(s->stmt_->if_stmt->expression);
-            fprintf(file, "\tcmp\t%s,\t1\n", scratch_name(s->stmt_->if_stmt->expression->reg, s->stmt_->if_stmt->expression->size));
+            fprintf(file, "\tcmp\t%s,\t1\n", scratch_name(s->stmt_->if_stmt->expression->reg, 8));
             fprintf(file, "\tjne\telse_if_L%i\n", elseIfLabel);
             scratch_free(s->stmt_->if_stmt->expression->reg);
             stmt_codegen(s->stmt_->if_stmt->statement, f);
@@ -2011,6 +2327,38 @@ void if_else_codegen(struct stmt * s, struct decl_function * f, int end)
     
 }
 
+void while_codegen(struct stmt * s, struct decl_function * f)
+{
+    int startLabel = label_create();
+    int endLabel = label_create();
+    fprintf(file, "while_start_%i:\n", startLabel);
+    expr_codegen(s->stmt_->while_stmt->expression);
+    fprintf(file, "\tcmp\t%s,\t1\n", scratch_name(s->stmt_->while_stmt->expression->reg, 4));
+    fprintf(file, "\tjne\twhile_end_%i\n", endLabel);
+    stmt_codegen(s->stmt_->while_stmt->body, f);
+    fprintf(file, "\tjmp\twhile_start_%i\n", startLabel);
+    fprintf(file, "while_end_%i:\n", endLabel);
+}
+
+void for_codegen(struct stmt * s, struct decl_function * f)
+{
+    int startLabel = label_create();
+    int endLabel = label_create();
+
+    decl_codegen(s->stmt_->for_stmt->declaration);
+    fprintf(file, "for_start_%i:\n", startLabel);
+    
+    expr_codegen(s->stmt_->for_stmt->expression1);
+    fprintf(file, "\tcmp\t%s,\t1\n", scratch_name(s->stmt_->for_stmt->expression1->reg, 4));
+    fprintf(file, "\tjne\tfor_end_%i\n", endLabel);
+
+    stmt_codegen(s->stmt_->for_stmt->body, f);
+
+    expr_codegen(s->stmt_->for_stmt->expression2);
+    fprintf(file, "\tjmp\tfor_start_%i\n", startLabel);
+    fprintf(file, "for_end_%i:\n", endLabel);
+}
+
 void stmt_codegen(struct stmt * s, struct decl_function * f)
 {
     if (!s) return;
@@ -2032,7 +2380,12 @@ void stmt_codegen(struct stmt * s, struct decl_function * f)
     case STMT_IF:
         if_codegen(s, f);
         break;
-    
+    case STMT_WHILE:
+        while_codegen(s, f);
+        break;
+    case STMT_FOR:
+        for_codegen(s, f);
+        break;    
     default:
         break;
     }
